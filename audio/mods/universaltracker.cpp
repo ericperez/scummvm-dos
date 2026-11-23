@@ -62,13 +62,10 @@ static size_t memoryReaderRead(void *stream, void *dst, size_t bytes) {
 		return 0;
 	}
 
-	uint32 receivedBytes = reader->read(dst, bytes);
-
-	if (receivedBytes < bytes) {
-		return 0;
-	}
-
-	return receivedBytes;
+	// A read that runs into the end of the file returns what is left, which libopenmpt takes as the
+	// end of the file (returning 0 there would throw the last bytes away: a MOD's sample data
+	// is at the end of the file)
+	return reader->read(dst, bytes);
 }
 
 static int memoryReaderSeek(void *stream, int64_t offset, int whence) {
