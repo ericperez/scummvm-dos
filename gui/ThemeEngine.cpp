@@ -540,7 +540,16 @@ bool ThemeEngine::addFont(TextData textId, const Common::String &language, const
 	if (file == "default") {
 		_texts[textId]->_fontPtr = _font;
 	} else {
-		_texts[textId]->_fontPtr = loadFont(file, scalableFile, pointsize, textId == kTextDataDefault);
+#ifdef USE_DOS_DRIVER
+		// The debugger console is text at 640x480 in 256 colours: no smoothing,
+		// and two points bigger
+		const bool sharp = textId == kTextDataConsole;
+		const int fontSize = sharp ? pointsize + 2 : pointsize;
+#else
+		const bool sharp = false;
+		const int fontSize = pointsize;
+#endif
+		_texts[textId]->_fontPtr = loadFont(file, scalableFile, fontSize, textId == kTextDataDefault, sharp);
 
 		if (!_texts[textId]->_fontPtr) {
 			warning("Couldn't load font '%s'/'%s'", file.c_str(), scalableFile.empty()? "(none)" : scalableFile.c_str());
