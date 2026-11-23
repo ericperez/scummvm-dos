@@ -121,6 +121,9 @@ public:
 		#if defined(__MINT__)
 		LINK_PLUGIN(STMIDI)
 		#endif
+		#if defined(USE_DOS_DRIVER)
+		LINK_PLUGIN(DOSMIDI)
+		#endif
 		#if defined(IRIX)
 		LINK_PLUGIN(DMEDIA)
 		#endif

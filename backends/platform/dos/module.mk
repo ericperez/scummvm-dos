@@ -7,6 +7,7 @@ MODULE_OBJS := \
 	dos-graphics.o \
 	dos-input.o \
 	dos-keyboard.o \
+	dos-midi.o \
 	dos-mixer.o \
 	dos-opl.o \
 	dos-sb.o \

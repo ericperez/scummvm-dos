@@ -70,7 +70,7 @@ public:
 	Common::MutexInternal *createMutex() override;
 	uint32 getMillis(bool skipRecord = false) override;
 	void delayMillis(uint msecs) override;
-	void updateAudio();
+	void updateAudio(); ///< also called by the MIDI driver while it waits (dosPumpAudio())
 	void getTimeAndDate(TimeDate &td, bool skipRecord = false) const override;
 
 	void quit() override;
@@ -144,7 +144,11 @@ OSystem_DOS::OSystem_DOS() :
 	_fsFactory = new POSIXFilesystemFactory();
 }
 
+// The one backend, for the MIDI driver (see dosPumpAudio())
+static OSystem_DOS *g_dosSystem = nullptr;
+
 OSystem_DOS::~OSystem_DOS() {
+	g_dosSystem = nullptr;
 	// A run that never got as far as initBackend() (--add, --list-games) still has its log
 	openLog();
 	delete _logger;
@@ -179,6 +183,7 @@ void OSystem_DOS::openLog() {
 }
 
 void OSystem_DOS::initBackend() {
+	g_dosSystem = this;
 	_startClock = uclock();
 
 	openLog();
@@ -231,6 +236,12 @@ void OSystem_DOS::initBackend() {
 
 void OSystem_DOS::updateAudio() {
 	_dosMixer->update();
+}
+
+// For the MIDI driver, which can wait for a while on the MPU-401
+void dosPumpAudio() {
+	if (g_dosSystem)
+		g_dosSystem->updateAudio();
 }
 
 void OSystem_DOS::parseScriptedClicks(const char *spec) {
