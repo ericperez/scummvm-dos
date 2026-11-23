@@ -35,6 +35,10 @@ protected:
 	Common::String _path;
 	bool _isDirectory;
 	bool _isValid;
+#ifdef __DJGPP__
+	/** DOS: the flags are read on first use (see isDirectory()), as asking is slow */
+	mutable bool _flagsKnown;
+#endif
 
 	virtual AbstractFSNode *makeNode(const Common::String &path) const {
 		return new POSIXFilesystemNode(path);
@@ -43,7 +47,11 @@ protected:
 	/**
 	 * Plain constructor, for internal use only (hence protected).
 	 */
+#ifdef __DJGPP__
+	POSIXFilesystemNode() : _isDirectory(false), _isValid(false), _flagsKnown(true) {}
+#else
 	POSIXFilesystemNode() : _isDirectory(false), _isValid(false) {}
+#endif
 
 public:
 	/**
@@ -57,7 +65,11 @@ public:
 	Common::U32String getDisplayName() const override { return _displayName; }
 	Common::String getName() const override { return _displayName; }
 	Common::String getPath() const override { return _path; }
+#ifdef __DJGPP__
+	bool isDirectory() const override;
+#else
 	bool isDirectory() const override { return _isDirectory; }
+#endif
 	bool isReadable() const override;
 	bool isWritable() const override;
 

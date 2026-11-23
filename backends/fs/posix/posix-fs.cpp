@@ -49,6 +49,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef __DJGPP__
+#include <io.h>     // _chmod(), used by setFlags()
+#endif
 
 #ifdef __OS2__
 #define INCL_DOS
@@ -67,11 +70,36 @@ bool POSIXFilesystemNode::isWritable() const {
 	return access(_path.c_str(), W_OK) == 0;
 }
 
+#ifdef __DJGPP__
+bool POSIXFilesystemNode::isDirectory() const {
+	if (!_flagsKnown)
+		const_cast<POSIXFilesystemNode *>(this)->setFlags();
+	return _isDirectory;
+}
+#endif
+
 void POSIXFilesystemNode::setFlags() {
+#if defined(__DJGPP__)
+	_flagsKnown = true;
+	// DJGPP's stat() can take 100+ ms a call; the DOS attributes are far cheaper
+	const size_t len = _path.size();
+	const bool driveRoot = (len == 2 && _path[1] == ':') || (len == 3 && _path[1] == ':' && _path[2] == '/');
+	if (driveRoot) {
+		// DOS has no attributes for a drive's root directory
+		_isValid = (access(_path.c_str(), F_OK) == 0);
+		_isDirectory = _isValid;
+		return;
+	}
+
+	int attributes = _chmod(_path.c_str(), 0);
+	_isValid = (attributes != -1);
+	_isDirectory = _isValid && (attributes & 0x10); // the "directory" attribute
+#else
 	struct stat st;
 
 	_isValid = (0 == stat(_path.c_str(), &st));
 	_isDirectory = _isValid ? S_ISDIR(st.st_mode) : false;
+#endif
 }
 
 POSIXFilesystemNode::POSIXFilesystemNode(const Common::String &p) {
@@ -122,12 +150,16 @@ POSIXFilesystemNode::POSIXFilesystemNode(const Common::String &p) {
 	// TODO: Should we enforce that the path is absolute at this point?
 	//assert(_path.hasPrefix("/"));
 
+#ifdef __DJGPP__
+	_flagsKnown = false;
+#else
 	setFlags();
+#endif
 }
 
 AbstractFSNode *POSIXFilesystemNode::getChild(const Common::String &n) const {
 	assert(!_path.empty());
-	assert(_isDirectory);
+	assert(isDirectory());
 
 	// Make sure the string contains no slashes
 	assert(!n.contains('/'));
@@ -143,7 +175,7 @@ AbstractFSNode *POSIXFilesystemNode::getChild(const Common::String &n) const {
 }
 
 bool POSIXFilesystemNode::getChildren(AbstractFSList &myList, ListMode mode, bool hidden) const {
-	assert(_isDirectory);
+	assert(isDirectory());
 
 #ifdef __OS2__
 	if (_path == "/") {
@@ -193,6 +225,9 @@ bool POSIXFilesystemNode::getChildren(AbstractFSList &myList, ListMode mode, boo
 		// Start with a clone of this node, with the correct path set
 		POSIXFilesystemNode entry(*this);
 		entry._displayName = dp->d_name;
+#ifdef __DJGPP__
+		entry._flagsKnown = true;   // set below, from d_type
+#endif
 		if (_path.lastChar() != '/')
 			entry._path += '/';
 		entry._path += entry._displayName;
@@ -304,7 +339,7 @@ bool POSIXFilesystemNode::createDirectory() {
 	if (mkdir(_path.c_str(), 0755) == 0)
 		setFlags();
 
-	return _isValid && _isDirectory;
+	return isDirectory() && _isValid;
 }
 
 namespace Posix {
