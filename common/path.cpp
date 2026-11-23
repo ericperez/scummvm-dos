@@ -1200,7 +1200,8 @@ Path Path::fromConfig(const String &value) {
 
 	// Paths saved under WIN32 used \ separator
 	// We now punyencode and store using /
-#if defined(WIN32)
+	// (the same goes for DOS, where the user may type c:\games)
+#if defined(WIN32) || defined(__DJGPP__)
 	if (strchr(value.c_str(), Path::kNativeSeparator)) {
 		String value_ = value;
 		// We may have mixed \ and / in our paths before
@@ -1240,7 +1241,7 @@ String Path::toConfig() const {
 			return toString(Path::kNativeSeparator);
 		}
 	}
-#elif defined(__3DS__) || defined(__amigaos4__) || defined(__MINT__) || defined(__DS__) || defined(__MORPHOS__) || defined(NINTENDO_SWITCH) || defined(__PSP__) || defined(PSP2) || defined(RISCOS) || defined(__WII__) || defined(WIN32)
+#elif defined(__3DS__) || defined(__amigaos4__) || defined(__MINT__) || defined(__DS__) || defined(__MORPHOS__) || defined(NINTENDO_SWITCH) || defined(__PSP__) || defined(PSP2) || defined(RISCOS) || defined(__WII__) || defined(WIN32) || defined(__DJGPP__)
 	// For all platforms making use of : as a drive separator, avoid useless punycoding
 	if (!isEscaped()) {
 		// If we are escaped, we have forbidden characters which must be encoded
@@ -1284,8 +1285,8 @@ Path Path::fromCommandLine(const String &value) {
 		return Path();
 	}
 
-	// WIN32 accepts / and \ as separators
-#if defined(WIN32)
+	// WIN32 and DOS accept / and \ as separators
+#if defined(WIN32) || defined(__DJGPP__)
 	if (strchr(value.c_str(), Path::kNativeSeparator)) {
 		String value_ = value;
 		// User may have mixed \ and /

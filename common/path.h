@@ -189,7 +189,7 @@ public:
 	 * The platform native separator.
 	 * This is used when accessing files on disk
 	 */
-#if defined(WIN32)
+#if defined(WIN32) || defined(__DJGPP__)
 	static const char kNativeSeparator = '\\';
 #else
 	static const char kNativeSeparator = '/';

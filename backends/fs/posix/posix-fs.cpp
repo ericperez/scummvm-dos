@@ -90,6 +90,11 @@ POSIXFilesystemNode::POSIXFilesystemNode(const Common::String &p) {
 		_path = p;
 	}
 
+#ifdef __DJGPP__
+	// Store the path with slashes; DJGPP accepts both separators
+	_path.replace('\\', '/');
+#endif
+
 #ifdef __OS2__
 	// On OS/2, 'X:/' is a root of drive X, so we should not remove that last
 	// slash.

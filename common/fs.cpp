@@ -205,7 +205,12 @@ FSNode FSNode::getParent() const {
 
 Path FSNode::getPath() const {
 	assert(_realNode);
+#ifdef __DJGPP__
+	// DOS nodes store their paths with slashes, not native backslashes
+	return Path(_realNode->getPath(), '/');
+#else
 	return Path(_realNode->getPath(), Common::Path::kNativeSeparator);
+#endif
 }
 
 bool FSNode::isDirectory() const {
