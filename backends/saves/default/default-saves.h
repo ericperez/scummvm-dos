@@ -104,6 +104,16 @@ private:
 	 * The currently cached directory.
 	 */
 	Common::Path _cachedDirectory;
+
+	/**
+	 * Whether _cachedDirectory (and _saveFileCache) holds a successful scan.
+	 *
+	 * An empty save path means "the current directory" (the DOS port has no
+	 * default save path), so an empty _cachedDirectory cannot also mean
+	 * "nothing cached yet": the first lookup would find a match and never
+	 * list the folder, and no existing savegame would ever be seen.
+	 */
+	bool _cacheValid = false;
 };
 
 #endif

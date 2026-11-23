@@ -66,6 +66,7 @@ void DefaultSaveFileManager::checkPath(const Common::FSNode &dir) {
 void DefaultSaveFileManager::updateSavefilesList(Common::StringArray &lockedFiles) {
 	//make it refresh the cache next time it lists the saves
 	_cachedDirectory = "";
+	_cacheValid = false;
 
 	//remember the locked files list because some of these files don't exist yet
 	_lockedFiles = lockedFiles;
@@ -263,12 +264,13 @@ void DefaultSaveFileManager::assureCached(const Common::Path &savePathName) {
 	else _lockedFiles = files;
 #endif
 
-	if (_cachedDirectory == savePathName) {
+	if (_cacheValid && _cachedDirectory == savePathName) {
 		return;
 	}
 
 	_saveFileCache.clear();
 	_cachedDirectory.clear();
+	_cacheValid = false;
 
 	if (getError().getCode() != Common::kNoError) {
 		warning("DefaultSaveFileManager::assureCached: Can not cache path '%s': '%s'", savePathName.toString(Common::Path::kNativeSeparator).c_str(), getErrorDesc().c_str());
@@ -296,6 +298,7 @@ void DefaultSaveFileManager::assureCached(const Common::Path &savePathName) {
 	// Only now store that we cached 'savePathName' to indicate we successfully
 	// cached the directory.
 	_cachedDirectory = savePathName;
+	_cacheValid = true;
 }
 
 #ifdef USE_CLOUD
