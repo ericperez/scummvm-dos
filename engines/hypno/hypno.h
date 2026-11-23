@@ -37,6 +37,11 @@
 #include "hypno/grammar.h"
 #include "hypno/libfile.h"
 
+#if defined(__DJGPP__) && defined(PI)
+// DJGPP's <math.h> defines PI, which clashes with the grammar's PI token
+#undef PI
+#endif
+
 namespace Audio {
 class SeekableAudioStream;
 }
