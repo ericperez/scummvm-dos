@@ -1,5 +1,19 @@
 MODULE := backends/platform/dos
 
+ifdef DOS_SDL
+# --backend=sdl: SDL3 does video, input and PCM output; the rest comes from here (see dos-sdl.h)
+MODULE_OBJS := \
+	dos-sdl.o \
+	dos-sdl-main.o \
+	dos-cdaudio.o \
+	dos-files.o \
+	dos-midi.o \
+	dos-opl.o \
+	dos-vesa.o
+
+# A last -lm, so the float functions all come from libm, not libstdc++'s stubs (multiple definition of tanf)
+LIBS += -lm
+else
 MODULE_OBJS := \
 	dos.o \
 	dos-cdaudio.o \
@@ -12,6 +26,7 @@ MODULE_OBJS := \
 	dos-opl.o \
 	dos-sb.o \
 	dos-vesa.o
+endif
 
 # Plug-ins: the export table made by dos.mk, linked ahead of the libraries so what it names is taken from them
 ifdef DYNAMIC_MODULES

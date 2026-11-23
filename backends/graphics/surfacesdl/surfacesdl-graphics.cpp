@@ -168,6 +168,9 @@ SurfaceSdlGraphicsManager::SurfaceSdlGraphicsManager(SdlEventSource *sdlEventSou
 #endif
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	_renderer(nullptr), _screenTexture(nullptr),
+#ifdef USE_DOS_SDL
+	_dosViewX(0), _dosViewY(0), _dosUpdateWarned(false),
+#endif
 #endif
 #if defined(WIN32) && !SDL_VERSION_ATLEAST(2, 0, 0)
 	_originalBitsPerPixel(0),
@@ -786,7 +789,16 @@ int SurfaceSdlGraphicsManager::getStretchMode() const {
 }
 #endif
 
+#ifdef USE_DOS_SDL
+// In backends/platform/dos/dos-sdl.cpp: the launcher's resolution, chosen as the dos backend does
+bool dosGuiResolution(uint &width, uint &height);
+#endif
+
 void SurfaceSdlGraphicsManager::getDefaultResolution(uint &w, uint &h) {
+#ifdef USE_DOS_SDL
+	if (dosGuiResolution(w, h))
+		return;
+#endif
 	w = 320;
 	h = 200;
 }
@@ -1190,6 +1202,22 @@ bool SurfaceSdlGraphicsManager::hotswapGFXMode() {
 	return true;
 }
 
+#ifdef USE_DOS_SDL
+// In dos-sdl.cpp: an RGB565 video mode for the screen, and the start-up banner (drawn until the game draws)
+bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight);
+bool dosBannerDraw(SDL_Surface *surface);
+bool dosBannerClear();
+// Remove the banner, clearing the window's surface around a smaller screen. True if there was one.
+static bool dosBannerErase(SdlWindow *window) {
+	if (!dosBannerClear())
+		return false;
+	SDL_Surface *surface = window && window->getSDLWindow() ? SDL_GetWindowSurface(window->getSDLWindow()) : nullptr;
+	if (surface)
+		SDL_FillSurfaceRect(surface, nullptr, 0);
+	return true;
+}
+#endif
+
 void SurfaceSdlGraphicsManager::updateScreen() {
 	assert(_transactionMode == kTransactionNone);
 
@@ -1216,6 +1244,12 @@ void SurfaceSdlGraphicsManager::internUpdateScreen() {
 	// initSize()); the redraw flags stay set, so it is drawn later.
 	if (!_hwScreen || (_overlayVisible ? !_overlayscreen : !_screen))
 		return;
+
+#ifdef USE_DOS_SDL
+	// A dialog is on the screen: the banner is for the game that is starting
+	if (_overlayVisible && dosBannerErase(_window))
+		_forceRedraw = true;
+#endif
 
 	bool curCursorNeedsRedraw = _cursorNeedsRedraw;
 	if (_prevCursorNeedsRedraw && _isDoubleBuf) {
@@ -1597,7 +1631,7 @@ void SurfaceSdlGraphicsManager::internUpdateScreen() {
 	renderImGui();
 #endif
 
-	if (doPresent) {
+	if (doPresent && _renderer) {
 		SDL_RenderPresent(_renderer);
 	}
 #else
@@ -1730,6 +1764,12 @@ void SurfaceSdlGraphicsManager::copyRectToScreen(const void *buf, int pitch, int
 	assert(h > 0 && y + h <= _videoMode.screenHeight);
 	assert(w > 0 && x + w <= _videoMode.screenWidth);
 
+#ifdef USE_DOS_SDL
+	// The game draws: the banner goes, and the whole screen is drawn again over where it was
+	if (dosBannerErase(_window))
+		_forceRedraw = true;
+#endif
+
 	addDirtyRect(x, y, w, h, false);
 
 	// Try to lock the screen surface
@@ -1783,6 +1823,10 @@ void SurfaceSdlGraphicsManager::unlockScreen() {
 
 	// Trigger a full screen update
 	_forceRedraw = true;
+
+#ifdef USE_DOS_SDL
+	dosBannerErase(_window);
+#endif
 
 	// Finally unlock the graphics mutex
 	_graphicsMutex.unlock();
@@ -3078,6 +3122,11 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 #endif
 	}
 
+#ifdef USE_DOS_SDL
+	// SDL's DOS driver sets the chosen video mode only for a fullscreen window
+	createWindowFlags |= SDL_WINDOW_FULLSCREEN;
+#endif
+
 	if (!createOrUpdateWindow(width, height, createWindowFlags)) {
 		return nullptr;
 	}
@@ -3088,6 +3137,58 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 			warning("SDL_SetWindowFullscreenMode failed (%s)", SDL_GetError());
 		if (!SDL_SyncWindow(_window->getSDLWindow()))
 			warning("SDL_SyncWindow failed (%s)", SDL_GetError());
+	}
+#endif
+
+#ifdef USE_DOS_SDL
+	{
+		// The window's surface is the screen: no renderer or texture copying every frame
+		SDL_Window *sdlWindow = _window->getSDLWindow();
+		SDL_Surface *windowSurface = nullptr;
+		int modeW = 0, modeH = 0;
+
+		// SDL's DOS driver may set a mode of the right size in another pixel format: choose the
+		// mode again and make the surface again until it is RGB565 (three tries)
+		for (int attempt = 0; attempt < 3; attempt++) {
+			const bool chosen = dosChooseVideoMode(sdlWindow, width, height, modeW, modeH);
+			SDL_DestroyWindowSurface(sdlWindow);
+			windowSurface = SDL_GetWindowSurface(sdlWindow);
+			if (!windowSurface || !chosen || windowSurface->format == SDL_PIXELFORMAT_RGB565)
+				break;
+			debug(1, "DOS: the window's surface is %s, not RGB565; choosing the mode again", SDL_GetPixelFormatName(windowSurface->format));
+		}
+		if (!windowSurface) {
+			warning("SDL_GetWindowSurface failed (%s)", SDL_GetError());
+			return nullptr;
+		}
+
+		if (windowSurface->format != SDL_PIXELFORMAT_RGB565)
+			warning("DOS: the screen is a %s surface: no RGB565 video mode of %dx%d or more", SDL_GetPixelFormatName(windowSurface->format), width, height);
+
+		// What the driver sends to video memory is the part of the surface that is inside the mode
+		int visibleW = windowSurface->w, visibleH = windowSurface->h;
+		if (modeW > 0 && modeH > 0) {
+			visibleW = MIN(visibleW, modeW);
+			visibleH = MIN(visibleH, modeH);
+		}
+		_windowWidth = visibleW;
+		_windowHeight = visibleH;
+		handleResize(_windowWidth, _windowHeight);
+
+		SDL_FillSurfaceRect(windowSurface, nullptr, 0);
+		// A banner for the game that is starting stays through its change of video mode
+		if (dosBannerDraw(windowSurface))
+			SDL_UpdateWindowSurface(sdlWindow);
+		debug(1, "DOS: screen %dx%d in a %s surface of %dx%d, %dx%d of it shown; game area %d,%d %dx%d, overlay area %d,%d %dx%d", width, height,
+		      SDL_GetPixelFormatName(windowSurface->format), windowSurface->w, windowSurface->h, visibleW, visibleH,
+		      _gameDrawRect.left, _gameDrawRect.top, _gameDrawRect.width(), _gameDrawRect.height(),
+		      _overlayDrawRect.left, _overlayDrawRect.top, _overlayDrawRect.width(), _overlayDrawRect.height());
+		const int bytesPerPixel = SDL_BYTESPERPIXEL(windowSurface->format);
+		_dosViewX = visibleW > width ? (visibleW - width) / 2 : 0;
+		_dosViewY = visibleH > height ? (visibleH - height) / 2 : 0;
+		return SDL_CreateSurfaceFrom(MIN(width, visibleW), MIN(height, visibleH), windowSurface->format,
+		                             (Uint8 *)windowSurface->pixels + _dosViewY * windowSurface->pitch + _dosViewX * bytesPerPixel,
+		                             windowSurface->pitch);
 	}
 #endif
 
@@ -3175,6 +3276,14 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 }
 
 void SurfaceSdlGraphicsManager::SDL_UpdateRects(SDL_Surface *screen, int numrects, SDL_Rect *rects) {
+#ifdef USE_DOS_SDL
+	// The pixels are already in the window's surface; send it to video memory
+	dosBannerDraw(SDL_GetWindowSurface(_window->getSDLWindow()));
+	if (!SDL_UpdateWindowSurface(_window->getSDLWindow()) && !_dosUpdateWarned) {
+		_dosUpdateWarned = true;
+		warning("SDL_UpdateWindowSurface failed (%s)", SDL_GetError());
+	}
+#else
 	SDL_UpdateTexture(_screenTexture, nullptr, screen->pixels, screen->pitch);
 
 	SDL_Rect viewport;
@@ -3216,6 +3325,7 @@ void SurfaceSdlGraphicsManager::SDL_UpdateRects(SDL_Surface *screen, int numrect
 		SDL_RenderCopy(_renderer, _screenTexture, nullptr, &viewport);
 #endif
 	}
+#endif
 }
 
 int SurfaceSdlGraphicsManager::SDL_SetColors(SDL_Surface *surface, SDL_Color *colors, int firstcolor, int ncolors) {

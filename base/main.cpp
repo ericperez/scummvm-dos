@@ -374,7 +374,7 @@ static void setupGraphics(OSystem &system) {
 		system.setShader(ConfMan.getPath("shader"));
 		system.setRotationMode(ConfMan.getInt("rotation_mode"));
 
-#if defined(OPENDINGUX) || defined(MIYOO) || defined(MIYOOMINI) || defined(ATARI)
+#if defined(OPENDINGUX) || defined(MIYOO) || defined(MIYOOMINI) || defined(ATARI) || defined(USE_DOS_SDL)
 		// 0, 0 means "autodetect" but currently only SDL supports
 		// it and really useful only on Opendingux. When more platforms
 		// support it we will switch to it.

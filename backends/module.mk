@@ -240,7 +240,10 @@ endif
 ifndef RISCOS
 ifndef KOLIBRIOS
 ifndef SDL_ATARI
+# DOS: SDL_LoadObject is not available, the DXE3 loader below is used
+ifndef DOS_SDL
 MODULE_OBJS += plugins/sdl/sdl-provider.o
+endif
 endif
 endif
 endif
@@ -433,6 +436,13 @@ MODULE_OBJS += \
 endif
 
 ifeq ($(BACKEND),dos)
+ifdef DYNAMIC_MODULES
+MODULE_OBJS += \
+	plugins/dos/dos-provider.o
+endif
+endif
+
+ifdef DOS_SDL
 ifdef DYNAMIC_MODULES
 MODULE_OBJS += \
 	plugins/dos/dos-provider.o

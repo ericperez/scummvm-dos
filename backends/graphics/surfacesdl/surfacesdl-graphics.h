@@ -197,6 +197,11 @@ protected:
 	 * around this API to keep the code paths as close as possible. */
 	SDL_Renderer *_renderer;
 	SDL_Texture *_screenTexture;
+#ifdef USE_DOS_SDL
+	/** DOS: the screen is a centred view of the window's surface, at this position */
+	int _dosViewX, _dosViewY;
+	bool _dosUpdateWarned;  ///< A failure to send the surface to video memory has been logged
+#endif
 	void deinitializeRenderer();
 	void recreateScreenTexture();
 

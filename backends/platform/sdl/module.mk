@@ -11,9 +11,11 @@ MODULE_OBJS += \
 endif
 
 ifdef POSIX
+ifndef DOS_SDL
 MODULE_OBJS += \
 	posix/posix-main.o \
 	posix/posix.o
+endif
 endif
 
 ifdef MACOSX

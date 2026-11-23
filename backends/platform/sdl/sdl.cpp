@@ -638,8 +638,13 @@ void OSystem_SDL::initSDL() {
 	// Check if SDL_net has not been initialized
 	if (!_initedSDLnet) {
 		// Initialize SDL_net
+#ifdef USE_DOS_SDL
+		// On DOS, no packet driver just means no web server (SDLNet_Init has logged it)
+		SDLNet_Init();
+#else
 		if (SDLNet_Init() == -1)
 			error("Could not initialize SDL_net: %s", SDLNet_GetError());
+#endif
 
 		_initedSDLnet = true;
 	}

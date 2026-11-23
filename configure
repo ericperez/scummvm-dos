@@ -4439,6 +4439,15 @@ case $_backend in
 		;;
 	sdl)
 		_sdl=auto
+		if test "$_host_os" = msdosdjgpp ; then
+			# SDL3 does video, input and PCM output; the FM chip, MPU-401, CD audio, TCP/IP,
+			# 8.3 names and DXE plug-ins come from backends/platform/dos (see dos-sdl.h)
+			_prefer_sdl3=yes
+			append_var DEFINES "-DUSE_DOS_DRIVER"
+			append_var DEFINES "-DUSE_DOS_SDL"
+			add_line_to_config_mk "DOS_SDL = 1"
+			append_var MODULES "backends/platform/dos"
+		fi
 		;;
 	switch)
 		_sdl=auto
