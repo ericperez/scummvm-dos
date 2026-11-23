@@ -8,6 +8,7 @@ MODULE_OBJS := \
 	dos-input.o \
 	dos-keyboard.o \
 	dos-mixer.o \
+	dos-opl.o \
 	dos-sb.o \
 	dos-vesa.o
 

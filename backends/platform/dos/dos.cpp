@@ -395,9 +395,13 @@ void OSystem_DOS::pollInput() {
 	}
 }
 
+void dosOpl3SelfTest();
+
 bool OSystem_DOS::pollEvent(Common::Event &event) {
 	if (!_selfTestsDone) {
 		_selfTestsDone = true;
+		if (getenv("SCUMMVM_DOS_OPL3TEST"))
+			dosOpl3SelfTest(); // ScummVM's configuration is loaded by now
 		if (getenv("SCUMMVM_DOS_KBDTEST"))
 			dosKeyboardSelfTest();
 		if (const char *cdMode = getenv("SCUMMVM_DOS_CDTEST"))
@@ -491,12 +495,14 @@ void OSystem_DOS::getTimeAndDate(TimeDate &td, bool skipRecord) const {
 }
 
 void dosSoundBlasterShutdown();
+void dosOplSilence();
 
 void OSystem_DOS::quit() {
 	// Clean up and leave through _exit(): exit() would run atexit handlers of unloaded plug-ins
 	if (_dosGfx)
 		_dosGfx->restoreTextMode();
 	dosSoundBlasterShutdown();
+	dosOplSilence();
 	dosKeyboardRemove();
 	#ifdef USE_SDL_NET
 	dosNetworkStop();

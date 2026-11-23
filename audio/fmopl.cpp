@@ -59,6 +59,15 @@ OPL *create(Config::OplType type);
 } // End of namespace RetroWaveOPL3
 #endif // ENABLE_RETROWAVE_OPL3
 
+#ifdef USE_DOS_DRIVER
+// The FM chip of an AdLib or Sound Blaster card (backends/platform/dos/dos-opl.cpp)
+namespace DOSHardware {
+OPL *create(Config::OplType type);
+bool isPresent();
+bool isOpl3();
+} // End of namespace DOSHardware
+#endif // USE_DOS_DRIVER
+
 // Config implementation
 
 enum OplEmulator {
@@ -71,6 +80,9 @@ enum OplEmulator {
 	kOPL2LPT = 6,
 	kOPL3LPT = 7,
 	kRWOPL3 = 8
+#ifdef USE_DOS_DRIVER
+	, kDOSHardware = 20
+#endif
 #ifdef USE_NFM
 	,kNfmNokturnFM2 = 9,
 	kNfmNokturnFM3 = 10,
@@ -96,6 +108,10 @@ OPL::OPL() {
 const Config::EmulatorDescription Config::_drivers[] = {
 	{ "auto", "<default>", kAuto, kFlagOpl2 | kFlagDualOpl2 | kFlagOpl3 },
 	{ "null", _s("None"), kNull, kFlagOpl2 | kFlagDualOpl2 | kFlagOpl3 },
+#ifdef USE_DOS_DRIVER
+	// First, so that auto-detection prefers the real chip when there is one
+	{ "dosopl", _s("DOS FM hardware (AdLib / Sound Blaster)"), kDOSHardware, kFlagOpl2 | kFlagDualOpl2 | kFlagOpl3 },
+#endif
 #ifndef DISABLE_MAME_OPL
 	{ "mame", _s("MAME OPL emulator"), kMame, kFlagOpl2 },
 #endif
@@ -193,7 +209,19 @@ Config::DriverId Config::detect(OplType type) {
 	// Detect the first matching emulator
 	drv = -1;
 
+#ifdef USE_DOS_DRIVER
+	// Without a real OPL3, decline dual OPL2 and OPL3 rather than emulate them at a heavy
+	// CPU cost: callers such as the SCI and iMuse drivers then fall back to the real OPL2
+	if ((type == kDualOpl2 || type == kOpl3) && !(DOSHardware::isPresent() && DOSHardware::isOpl3()))
+		return -1;
+#endif
+
 	for (int i = 2; _drivers[i].name; ++i) {
+#ifdef USE_DOS_DRIVER
+		// Only worth choosing if there is actually a chip to talk to
+		if (_drivers[i].id == kDOSHardware && !DOSHardware::isPresent())
+			continue;
+#endif
 		if (_drivers[i].flags & flags) {
 			drv = _drivers[i].id;
 			break;
@@ -228,6 +256,14 @@ OPL *Config::create(DriverId driver, OplType type) {
 	}
 
 	switch (driver) {
+#ifdef USE_DOS_DRIVER
+	case kDOSHardware:
+		if (type == kOpl2 || (DOSHardware::isPresent() && DOSHardware::isOpl3()))
+			return DOSHardware::create(type);
+		warning("The DOS FM hardware driver found no OPL3 for type %d", type);
+		return nullptr;
+#endif
+
 #ifndef DISABLE_MAME_OPL
 	case kMame:
 		if (type == kOpl2)
