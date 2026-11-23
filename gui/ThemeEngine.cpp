@@ -860,7 +860,13 @@ bool ThemeEngine::loadDefaultXML() {
 
 bool ThemeEngine::loadThemeXML(const Common::String &themeId) {
 	assert(_parser);
-	assert(_themeArchive);
+
+	// The theme named a folder without a THEMERC file, or a zip that would not
+	// open: fail the load (the caller falls back to another theme), do not abort
+	if (!_themeArchive) {
+		warning("Theme '%s' is not a usable theme folder or zip archive.", themeId.c_str());
+		return false;
+	}
 
 	_themeName.clear();
 
@@ -2240,9 +2246,18 @@ Common::Path ThemeEngine::getThemeFile(const Common::String &id) {
 	Common::Path path(id, Common::Path::kNativeSeparator);
 	Common::FSNode node(path);
 
-	// If the given id is a full path we'll just use it
-	if (node.exists() && (node.isDirectory() || node.getName().matchString("*.zip", true)))
-		return path;
+	// If the given id is a full path we'll just use it. A folder counts only if
+	// it holds a THEMERC file; an empty or unrelated folder is not a theme.
+	if (node.exists()) {
+		if (node.getName().matchString("*.zip", true))
+			return path;
+
+		if (node.isDirectory()) {
+			Common::FSNode themerc = node.getChild("THEMERC");
+			if (themerc.exists() && !themerc.isDirectory())
+				return path;
+		}
+	}
 
 	// FIXME:
 	// A very ugly hack to map a id to a filename, this will generate
