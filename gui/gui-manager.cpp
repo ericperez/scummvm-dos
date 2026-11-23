@@ -85,7 +85,13 @@ GuiManager::GuiManager() : CommandSender(nullptr), _redrawStatus(kRedrawDisabled
 	initIconsSet();
 	_iconsSetChanged = false;
 
+#ifdef USE_DOS_DRIVER
+	// DOS file names are 8.3, so the Remastered theme is shipped as scummrem.zip
+	// (a theme's name is the name of its file)
+	ConfMan.registerDefault("gui_theme", "scummrem");
+#else
 	ConfMan.registerDefault("gui_theme", "scummremastered");
+#endif
 	Common::String themefile(ConfMan.get("gui_theme"));
 
 	ConfMan.registerDefault("gui_renderer", ThemeEngine::findModeConfigName(ThemeEngine::_defaultRendererMode));
@@ -115,6 +121,9 @@ void GuiManager::initIconsSet() {
 	_iconsSet = Common::SearchSet();
 	_iconsSet.addDirectory("gui-icons/", iconsPath, 0, 3, false);
 	_iconsSetChanged = true;
+#elif defined(USE_DOS_DRIVER)
+	// 8.3 file name for gui-icons.dat
+	_iconsSetChanged = Common::generateZipSet(_iconsSet, "guiicons.dat", "guiicon*.dat");
 #else
 	_iconsSetChanged = Common::generateZipSet(_iconsSet, "gui-icons.dat", "gui-icons*.dat");
 #endif
