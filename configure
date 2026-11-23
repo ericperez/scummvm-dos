@@ -1886,6 +1886,13 @@ kos32)
 	_host_cpu=i686
 	_host_alias=kos32
 	;;
+i[3-6]86-*-msdosdjgpp)
+	# 32-bit MS-DOS (protected mode, DPMI host) built with the DJGPP
+	# cross-compiler: i586-pc-msdosdjgpp-g++
+	_host_os=msdosdjgpp
+	_host_cpu=i586
+	_host_alias=$_host
+	;;
 m68k-atari-mintelf*)
 	_host_os=mintelf
 	_host_cpu=m68k
@@ -2570,7 +2577,7 @@ if test "$have_gcc" = yes ; then
 		std_variant=gnu++
 		pedantic=no
 		;;
-	amigaos* | dreamcast | ds | mingw* | mint* | morphos | n64 | ps3 | psp2)
+	amigaos* | dreamcast | ds | mingw* | mint* | morphos | msdosdjgpp | n64 | ps3 | psp2)
 		std_variant=gnu++
 		;;
 	openbsd*)
@@ -4943,7 +4950,7 @@ case $_host_os in
 	amigaos* | dreamcast | ds | gamecube | kolibrios | mingw* | morphos | n64 | ps3 | psp2 | psp | riscos | wii)
 		_posix=no
 		;;
-	3ds | android | beos* | bsd* | cygwin* | darwin* | dragonfly* | freebsd* | gnu* | haiku* | hpux* | iphoneos | irix*| k*bsd*-gnu* | linux* | maemo | mint* | netbsd* | openbsd* | redox* | serenity* | solaris* | sunos* | switch | uclinux*)
+	3ds | android | beos* | bsd* | cygwin* | darwin* | dragonfly* | freebsd* | gnu* | haiku* | hpux* | iphoneos | irix*| k*bsd*-gnu* | linux* | maemo | mint* | msdosdjgpp | netbsd* | openbsd* | redox* | serenity* | solaris* | sunos* | switch | uclinux*)
 		_posix=yes
 		;;
 	os2-emx*)
@@ -4995,6 +5002,9 @@ fi
 case $_host_os in
 	mingw*)
 		# StdioStream just uses _ftelli64
+		;;
+	msdosdjgpp)
+		# DJGPP's fseeko64(SEEK_CUR) loses the file position; use fseek/ftell
 		;;
 	*)
 		echo_n "Checking if fseeko with 64-bit off_t is supported... "
