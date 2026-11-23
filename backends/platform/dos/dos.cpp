@@ -48,6 +48,7 @@
 #include "base/main.h"
 #include "gui/gui-manager.h"
 
+#include "backends/platform/dos/dos-cdaudio.h"
 #include "backends/platform/dos/dos-files.h"
 #include "backends/platform/dos/dos-graphics.h"
 #include "backends/platform/dos/dos-input.h"
@@ -214,6 +215,9 @@ void OSystem_DOS::initBackend() {
 		quit();
 	}
 	#endif
+
+	// Audio CDs through MSCDEX, and the tracks as files when the game has them
+	_audiocdManager = dosCreateAudioCDManager();
 
 	BaseBackend::initBackend();
 }
@@ -389,6 +393,8 @@ bool OSystem_DOS::pollEvent(Common::Event &event) {
 		_selfTestsDone = true;
 		if (getenv("SCUMMVM_DOS_KBDTEST"))
 			dosKeyboardSelfTest();
+		if (const char *cdMode = getenv("SCUMMVM_DOS_CDTEST"))
+			dosCdSelfTest(cdMode);
 
 		// Testing aid: quit at the first event, after any self-tests
 		if (getenv("SCUMMVM_DOS_TESTEXIT")) {
