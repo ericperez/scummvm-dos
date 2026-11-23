@@ -10,7 +10,8 @@ TESTS        := $(srcdir)/test/common/*.h \
 	$(srcdir)/test/common/formats/*.h \
 	$(srcdir)/test/audio/*.h \
 	$(srcdir)/test/math/*.h \
-	$(srcdir)/test/image/*.h
+	$(srcdir)/test/image/*.h \
+	$(srcdir)/test/backends/dos/*.h
 TEST_LIBS    :=
 
 ifdef POSIX
@@ -20,7 +21,8 @@ TEST_LIBS += test/system/null_osystem.o \
 	backends/fs/posix/posix-iostream.o \
 	backends/fs/abstract-fs.o \
 	backends/fs/stdiostream.o \
-	backends/modular-backend.o
+	backends/modular-backend.o \
+	test/system/temp_directory.o
 endif
 
 ifdef WIN32
@@ -31,6 +33,11 @@ TEST_LIBS += test/system/null_osystem.o \
 	backends/fs/stdiostream.o \
 	backends/modular-backend.o \
 	backends/platform/sdl/win32/win32_wrapper.o
+endif
+
+# For the DOS save tests; with cloud support the save manager also needs the cloud code
+ifndef USE_CLOUD
+TEST_LIBS += backends/saves/default/default-saves.o
 endif
 
 ifdef USE_TINYGL
