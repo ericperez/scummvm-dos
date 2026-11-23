@@ -324,7 +324,12 @@ void PluginManagerUncached::init() {
 	unloadPluginsExcept(PLUGIN_TYPE_ENGINE, nullptr, false); // empty the engine plugins
 
 #ifndef DETECTION_STATIC
+#ifdef PLUGIN_DETECTION_NAME
+	// Ports with short file names (DOS: 8.3) cut the plugin names, see PLUGIN_NAME in Makefile.common
+	Common::String detectPluginName = PLUGIN_DETECTION_NAME;
+#else
 	Common::String detectPluginName = "detection";
+#endif
 #ifdef PLUGIN_SUFFIX
 	detectPluginName += PLUGIN_SUFFIX;
 #endif
@@ -386,6 +391,11 @@ bool PluginManagerUncached::loadPluginFromEngineId(const Common::String &engineI
 	// Check for a plugin with the same name as the engine before starting
 	// to scan all plugins
 	Common::String tentativeEnginePluginFilename = engineId;
+#ifdef PLUGIN_NAME_MAX
+	// Ports with short file names (DOS: 8.3) cut the plugin names, see PLUGIN_NAME in Makefile.common
+	if (tentativeEnginePluginFilename.size() > PLUGIN_NAME_MAX)
+		tentativeEnginePluginFilename = tentativeEnginePluginFilename.substr(0, PLUGIN_NAME_MAX);
+#endif
 #ifdef PLUGIN_SUFFIX
 	tentativeEnginePluginFilename += PLUGIN_SUFFIX;
 #endif

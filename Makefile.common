@@ -20,6 +20,12 @@ endif
 ######################################################################
 
 PLUGINS :=
+# The file name (without prefix and suffix) of the plugin built from a module directory. A port whose
+# file names are limited in length (DOS: 8.3) redefines this in config.mk; PLUGIN_NAME_MAX in
+# base/plugins.cpp does the same for the lookup by engine id.
+ifndef PLUGIN_NAME
+PLUGIN_NAME = $(1)
+endif
 MODULES := test devtools base $(MODULES)
 
 ifeq (,$(filter updatepot,$(MAKECMDGOALS)))

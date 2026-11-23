@@ -45,7 +45,7 @@ ifdef PLUGIN
 ################################################
 # Build rule for dynamic (loadable) plugins
 ################################################
-PLUGIN-$(MODULE) := plugins/$(PLUGIN_PREFIX)$(notdir $(MODULE))$(PLUGIN_SUFFIX)
+PLUGIN-$(MODULE) := plugins/$(PLUGIN_PREFIX)$(call PLUGIN_NAME,$(notdir $(MODULE)))$(PLUGIN_SUFFIX)
 $(PLUGIN-$(MODULE)): $(MODULE_OBJS-$(MODULE)) $(PLUGIN_EXTRA_DEPS)
 	$(QUIET)$(MKDIR) plugins
 	+$(QUIET_PLUGIN)$(LD) $(filter-out $(PLUGIN_EXTRA_DEPS),$+) $(PLUGIN_LDFLAGS) -o $@
