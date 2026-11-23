@@ -1212,6 +1212,11 @@ void SurfaceSdlGraphicsManager::internUpdateScreen() {
 	if (debugger)
 		debugger->onFrame();
 
+	// The screen surfaces may not exist yet (a redraw requested before
+	// initSize()); the redraw flags stay set, so it is drawn later.
+	if (!_hwScreen || (_overlayVisible ? !_overlayscreen : !_screen))
+		return;
+
 	bool curCursorNeedsRedraw = _cursorNeedsRedraw;
 	if (_prevCursorNeedsRedraw && _isDoubleBuf) {
 		_cursorNeedsRedraw = true;
@@ -1990,6 +1995,8 @@ void SurfaceSdlGraphicsManager::clearOverlay() {
 	dst.x = dst.y = _maxExtraPixels;
 	src.w = dst.w = _videoMode.screenWidth;
 	src.h = dst.h = _videoMode.screenHeight;
+	if (!_screen || !_tmpscreen)
+		return;
 	if (!blitSurface(_screen, &src, _tmpscreen, &dst))
 		error("SDL_BlitSurface failed: %s", SDL_GetError());
 
