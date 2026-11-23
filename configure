@@ -4581,6 +4581,31 @@ if test "$_sdl" = yes ; then
 fi
 
 #
+# DOS: the local web server's SDL_net interface is backends/platform/dos/sdl-net, over
+# the Watt-32 TCP/IP library (--with-sdlnet-prefix=DIR: DIR/include, DIR/lib/libwatt.a)
+#
+if test "$_host_os" = msdosdjgpp && test "$_sdlnet" != no ; then
+	echocheck "Watt-32 (TCP/IP for the local web server)"
+	_sdlnet=no
+	if test -n "$SDL_NET_CFLAGS" && test -n "$SDL_NET_LIBS" ; then
+		cat > $TMPC << EOF
+#include <tcp.h>
+int main(void) { return sock_init(); }
+EOF
+		# Watt-32's netinet/in.h replaces DJGPP's: its headers go to dos-net.cpp only
+		WATT32_CFLAGS="$SDL_NET_CFLAGS"
+		cc_check $WATT32_CFLAGS $SDL_NET_LIBS -lwatt && _sdlnet=yes
+	fi
+	if test "$_sdlnet" = yes ; then
+		append_var LIBS "$SDL_NET_LIBS -lwatt"
+		append_var INCLUDES '-I$(srcdir)/backends/platform/dos/sdl-net'
+		add_line_to_config_mk "WATT32_CFLAGS = $WATT32_CFLAGS"
+		define_in_config_if_yes "$_sdlnet" 'USE_SDL_NET'
+	fi
+	echo "$_sdlnet"
+fi
+
+#
 # Some platforms (eg. Android, iOS) may use an edited version
 # of SDL-net or SDL2-net that does not require SDL or SDL2 respectively
 #

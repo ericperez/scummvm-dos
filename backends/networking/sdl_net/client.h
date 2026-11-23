@@ -44,7 +44,13 @@ enum ClientState {
 
 class Client;
 
+#ifdef USE_DOS_DRIVER
+// Each of the 10 possible clients gets a buffer this big: on DOS it is memory that
+// a game could use, and the TCP/IP stack never has this much to give at once
+#define CLIENT_BUFFER_SIZE 128 * 1024
+#else
 #define CLIENT_BUFFER_SIZE 1 * 1024 * 1024
+#endif
 
 class ClientHandler {
 public:

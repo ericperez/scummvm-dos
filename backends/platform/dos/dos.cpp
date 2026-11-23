@@ -54,6 +54,9 @@
 #include "backends/platform/dos/dos-input.h"
 #include "backends/platform/dos/dos-keyboard.h"
 #include "backends/platform/dos/dos-mixer.h"
+#ifdef USE_SDL_NET
+	#include "backends/platform/dos/dos-net.h"
+#endif
 
 class OSystem_DOS : public ModularMixerBackend, public ModularGraphicsBackend, Common::EventSource {
 public:
@@ -194,6 +197,10 @@ void OSystem_DOS::initBackend() {
 	_mixerManager->init();
 
 	dosKeyboardInit();
+	#ifdef USE_SDL_NET
+	// Warns if there is no TCP/IP stack for the local web server
+	dosNetworkAvailable();
+	#endif
 	if (getenv("SCUMMVM_DOS_JOYSTICK")) {
 		if (dosJoystickInit())
 			warning("DOS: joystick found on the game port (moves the cursor, buttons click)");
@@ -491,6 +498,9 @@ void OSystem_DOS::quit() {
 		_dosGfx->restoreTextMode();
 	dosSoundBlasterShutdown();
 	dosKeyboardRemove();
+	#ifdef USE_SDL_NET
+	dosNetworkStop();
+	#endif
 	openLog();
 	delete _logger;
 	_logger = nullptr;

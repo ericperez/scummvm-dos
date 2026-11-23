@@ -68,6 +68,9 @@
 
 #ifdef USE_SDL_NET
 #include "backends/networking/sdl_net/localwebserver.h"
+#ifdef USE_DOS_DRIVER
+#include "backends/platform/dos/dos-net.h"
+#endif
 #endif
 
 #include "graphics/paletteman.h"
@@ -2391,6 +2394,10 @@ void GlobalOptionsDialog::build() {
 #endif // USE_CLOUD
 
 #ifdef USE_SDL_NET
+#ifdef USE_DOS_DRIVER
+	// With no TCP/IP stack (no packet driver loaded) there is nothing to run a server on
+	if (dosNetworkAvailable()) {
+#endif
 	//
 	// 9) The LAN tab (local "cloud" webserver)
 	//
@@ -2399,6 +2406,9 @@ void GlobalOptionsDialog::build() {
 	else
 		tab->addTab(_c("LAN", "lowres"), "GlobalOptions_Network");
 	addNetworkControls(tab, "GlobalOptions_Network.", g_gui.useLowResGUI());
+#ifdef USE_DOS_DRIVER
+	}
+#endif
 #endif // USE_SDL_NET
 
 	//
@@ -2490,8 +2500,10 @@ void GlobalOptionsDialog::build() {
 
 #ifdef USE_SDL_NET
 	// The "cloud" domain also holds the /root/ folder of the local web server
-	Common::Path rootPath(ConfMan.getPath("rootpath", "cloud"));
-	_rootPath->setLabel(rootPath);
+	if (_rootPath) {
+		Common::Path rootPath(ConfMan.getPath("rootpath", "cloud"));
+		_rootPath->setLabel(rootPath);
+	}
 #endif // USE_SDL_NET
 }
 
@@ -3045,11 +3057,13 @@ void GlobalOptionsDialog::apply() {
 #endif // DYNAMIC_MODULES
 
 #ifdef USE_SDL_NET
-	Common::Path rootPath(_rootPath->getLabel());
-	if (!rootPath.empty())
-		ConfMan.setPath("rootpath", rootPath, "cloud");
-	else
-		ConfMan.removeKey("rootpath", "cloud");
+	if (_rootPath) {
+		Common::Path rootPath(_rootPath->getLabel());
+		if (!rootPath.empty())
+			ConfMan.setPath("rootpath", rootPath, "cloud");
+		else
+			ConfMan.removeKey("rootpath", "cloud");
+	}
 #endif // USE_SDL_NET
 
 	int oldGuiScale = ConfMan.getInt("gui_scale");
