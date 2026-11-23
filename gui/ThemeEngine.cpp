@@ -2246,6 +2246,34 @@ Common::Path ThemeEngine::getThemeFile(const Common::String &id) {
 		return Common::Path();
 
 	Common::Path path(id, Common::Path::kNativeSeparator);
+
+	// FIXME:
+	// A very ugly hack to map a id to a filename, this will generate
+	// a complete theme list, thus it is slower than it could be.
+	// But it is the easiest solution for now.
+	auto findInThemeList = [&id]() -> Common::Path {
+		Common::List<ThemeDescriptor> list;
+		listUsableThemes(list);
+
+		for (const auto &theme : list) {
+			if (id.equalsIgnoreCase(theme.id))
+				return theme.filename;
+		}
+		return Common::Path();
+	};
+
+	bool listSearched = false;
+#ifdef USE_DOS_DRIVER
+	// A bare theme name means the theme's .zip file. A folder of the same name
+	// (the zip unpacked by mistake, or left empty) must not hide it.
+	if (id.findFirstOf("/\\:") == Common::String::npos) {
+		Common::Path found = findInThemeList();
+		if (!found.empty())
+			return found;
+		listSearched = true;
+	}
+#endif
+
 	Common::FSNode node(path);
 
 	// If the given id is a full path we'll just use it. A folder counts only if
@@ -2261,16 +2289,10 @@ Common::Path ThemeEngine::getThemeFile(const Common::String &id) {
 		}
 	}
 
-	// FIXME:
-	// A very ugly hack to map a id to a filename, this will generate
-	// a complete theme list, thus it is slower than it could be.
-	// But it is the easiest solution for now.
-	Common::List<ThemeDescriptor> list;
-	listUsableThemes(list);
-
-	for (const auto &theme : list) {
-		if (id.equalsIgnoreCase(theme.id))
-			return theme.filename;
+	if (!listSearched) {
+		Common::Path found = findInThemeList();
+		if (!found.empty())
+			return found;
 	}
 
 	warning("Could not find theme '%s' falling back to builtin", id.c_str());
