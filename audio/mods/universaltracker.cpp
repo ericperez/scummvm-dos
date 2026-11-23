@@ -192,9 +192,15 @@ public:
 	}
 
 	int readBuffer(int16 *buffer, const int numSamples) override {
-		openmpt_module_read_interleaved_stereo(_mod, getRate(), numSamples / 2, buffer);
+		const size_t wanted = numSamples / 2;
+		const size_t frames = openmpt_module_read_interleaved_stereo(_mod, getRate(), wanted, buffer);
 
-		return numSamples;
+		// The module gives fewer frames than asked for only when its song is over
+		if (frames < wanted)
+			_songOver = true;
+		_producedSinceRewind += frames;
+
+		return frames * 2;
 	}
 
 	bool isStereo() const override {
@@ -205,8 +211,10 @@ public:
 		return _sampleRate;
 	}
 
+	// Not _stream->eos(): the module's loader reads the file in chunks and reaches the end of the
+	// file while loading, whatever the format, long before the song is over
 	bool endOfData() const override {
-		return _stream->eos();
+		return _songOver;
 	}
 
 	bool endOfStream() const override {
@@ -215,13 +223,22 @@ public:
 
 	// RewindableAudioStream API
 	bool rewind() override {
+		// A song that gave no sound at all since the last rewind has none to repeat: saying so keeps a
+		// looping stream from rewinding it for ever
+		if (_songOver && _producedSinceRewind == 0)
+			return false;
+
 		openmpt_module_set_position_seconds(_mod, 0.0);
+		_songOver = false;
+		_producedSinceRewind = 0;
 		return true;
 	}
 
 private:
 	DisposeAfterUse::Flag _dispose;
 	bool _mpt_load_successful = false;
+	bool _songOver = false;
+	size_t _producedSinceRewind = 0;
 	Common::SeekableReadStream *_stream;
 	openmpt_module *_mod = nullptr;
 	int _sampleRate;
