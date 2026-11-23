@@ -36,6 +36,12 @@
 
 #include "audio/audiostream.h"
 
+#ifdef __DJGPP__
+#include <math.h>
+// DJGPP has no nearbyintf(); rintf() rounds the same way
+#define nearbyintf rintf
+#endif
+
 namespace Audio {
 
 // These are wrapper functions to allow using a SeekableReadStream object to
