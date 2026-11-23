@@ -724,8 +724,31 @@ void AdvancedMetaEngineDetectionBase::dumpDetectionEntries() const {
 	}
 }
 
+// Mirrors the names MacResManager::open() and openFileOrDataFork() look up in a FileMapArchive
+static bool macForkMayExist(const AdvancedMetaEngineBase::FileMap &allFiles, const Common::String &fname, int &hasAppleDoubleFiles) {
+	if (hasAppleDoubleFiles < 0) {
+		hasAppleDoubleFiles = 0;
+		for (const auto &file : allFiles) {
+			// The map finds names whatever their case, so the folder may be spelled __macosx
+			Common::String name = file._key.toString('/');
+			name.toLowercase();
+			if (name.contains("__macosx") || name.contains("/._") || name.hasPrefix("._")) {
+				hasAppleDoubleFiles = 1;
+				break;
+			}
+		}
+	}
+
+	if (hasAppleDoubleFiles)
+		return true;
+
+	Common::Path path(fname);
+	return allFiles.contains(path) || allFiles.contains(path.append(".rsrc")) || allFiles.contains(path.append(".bin")) || allFiles.contains(path.append(".data"));
+}
+
 ADDetectedGames AdvancedMetaEngineDetectionBase::detectGame(const Common::FSNode &parent, const FileMap &allFiles, Common::Language language, Common::Platform platform, const Common::String &extra, uint32 skipADFlags, bool skipIncomplete) {
 	CachedPropertiesMap filesProps;
+	int hasAppleDoubleFiles = -1;
 	ADDetectedGames matched;
 
 	const ADGameFileDescription *fileDesc;
@@ -752,6 +775,12 @@ ADDetectedGames AdvancedMetaEngineDetectionBase::detectGame(const Common::FSNode
 				continue;
 
 			FileProperties tmp;
+			if ((md5prop & (kMD5MacResFork | kMD5MacDataFork)) && !macForkMayExist(allFiles, fname, hasAppleDoubleFiles)) {
+				// None of the files a fork can come from is in the folder
+				filesProps[key] = tmp;
+				continue;
+			}
+
 			if (getFileProperties(allFiles, md5prop, Common::Path(fname), tmp)) {
 				debugC(3, kDebugGlobalDetection, "> '%s': '%s' %ld", key.c_str(), tmp.md5.c_str(), long(tmp.size));
 			} else if (!(md5prop & (kMD5MacResFork | kMD5MacDataFork | kMD5Archive))) {
