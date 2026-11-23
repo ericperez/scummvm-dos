@@ -1551,10 +1551,14 @@ void SoundHE::playVoiceFile(char *filename) {
 	// instead of using a single .HE2 bundle.
 	//
 	// Again, we should never end up in here, but IF WE DO we issue a message box.
+#ifndef USE_DOS_DRIVER
 	GUIErrorMessageWithURL(_(
 			"Unimplemented development codepath encountered within the sound engine,\n"
 			"please file a ticket at https://bugs.scummvm.org."),
 		"https://bugs.scummvm.org");
+#endif
+	// (The DOS port only logs it: the Pajama Sam's Lost & Found demo reaches this
+	// and the box stops the game, and a DOS machine cannot open the URL anyway.)
 
 	warning("SoundHE::playVoiceFile(): Unimplemented development codepath");
 }
