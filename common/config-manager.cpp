@@ -43,7 +43,7 @@ char const *const ConfigManager::kSessionDomain = "__SESSION";
 
 char const *const ConfigManager::kKeymapperDomain = "keymapper";
 
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 char const *const ConfigManager::kCloudDomain = "cloud";
 #endif
 
@@ -68,7 +68,7 @@ void ConfigManager::copyFrom(ConfigManager &source) {
 	_defaultsDomain = source._defaultsDomain;
 	_keymapperDomain = source._keymapperDomain;
 	_sessionDomain = source._sessionDomain;
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	_cloudDomain = source._cloudDomain;
 #endif
 	_domainSaveOrder = source._domainSaveOrder;
@@ -142,7 +142,7 @@ void ConfigManager::addDomain(const String &domainName, const ConfigManager::Dom
 		_appDomain = domain;
 	} else if (domainName == kKeymapperDomain) {
 		_keymapperDomain = domain;
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	} else if (domainName == kCloudDomain) {
 		_cloudDomain = domain;
 #endif
@@ -185,7 +185,7 @@ bool ConfigManager::loadFromStream(SeekableReadStream &stream) {
 	_sessionDomain.clear();
 
 	_keymapperDomain.clear();
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	_cloudDomain.clear();
 #endif
 
@@ -311,7 +311,7 @@ void ConfigManager::flushToDisk() {
 
 	// Write the keymapper domain
 	writeDomain(*stream, kKeymapperDomain, _keymapperDomain);
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	// Write the cloud domain
 	writeDomain(*stream, kCloudDomain, _cloudDomain);
 #endif
@@ -398,7 +398,7 @@ const ConfigManager::Domain *ConfigManager::getDomain(const String &domName) con
 		return &_keymapperDomain;
 	if (domName == kSessionDomain)
 		return &_sessionDomain;
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	if (domName == kCloudDomain)
 		return &_cloudDomain;
 #endif
@@ -422,7 +422,7 @@ ConfigManager::Domain *ConfigManager::getDomain(const String &domName) {
 		return &_keymapperDomain;
 	if (domName == kSessionDomain)
 		return &_sessionDomain;
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	if (domName == kCloudDomain)
 		return &_cloudDomain;
 #endif

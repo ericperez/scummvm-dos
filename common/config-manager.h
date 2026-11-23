@@ -121,7 +121,7 @@ public:
 	 * These settings don't get saved to disk. */
 	static char const *const kSessionDomain;
 
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	/** The name of cloud domain used to store the user's tokens. */
 	static char const *const kCloudDomain;
 #endif
@@ -249,7 +249,7 @@ private:
 
 	Domain          _sessionDomain;
 
-#ifdef USE_CLOUD
+#if defined(USE_CLOUD) || defined(USE_SDL_NET)
 	Domain			_cloudDomain;
 #endif
 
