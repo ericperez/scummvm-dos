@@ -25,6 +25,11 @@
 #include "common/scummsys.h"
 #include "ultima/nuvie/misc/sdl_compat.h"
 
+#if defined(__DJGPP__)
+// DJGPP has no nearbyint(); rint() rounds the same way
+#define nearbyint(x) rint(x)
+#endif
+
 namespace Ultima {
 namespace Nuvie {
 
