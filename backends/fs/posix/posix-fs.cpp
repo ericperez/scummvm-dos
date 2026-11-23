@@ -35,6 +35,10 @@
 #include "backends/fs/posix/posix-iostream.h"
 #include "common/algorithm.h"
 
+#ifdef __DJGPP__
+#include <dos.h>    // getdfree(), used to list the DOS drives
+#endif
+
 #include <sys/param.h>
 #include <sys/stat.h>
 #ifdef MACOSX
@@ -177,6 +181,30 @@ AbstractFSNode *POSIXFilesystemNode::getChild(const Common::String &n) const {
 bool POSIXFilesystemNode::getChildren(AbstractFSList &myList, ListMode mode, bool hidden) const {
 	assert(isDirectory());
 
+#ifdef __DJGPP__
+	if (_path.empty()) {
+		// Pseudo root: list all available DOS drives, like the Windows port does
+		for (int drive = 1; drive <= 26; drive++) {
+			struct dfree df;
+			getdfree(drive, &df);
+			if (df.df_sclus == 0xFFFF)	// Not a valid drive
+				continue;
+
+			char driveRoot[] = "A:/";
+			driveRoot[0] += drive - 1;
+
+			POSIXFilesystemNode *entry = new POSIXFilesystemNode();
+			entry->_isDirectory = true;
+			entry->_isValid = true;
+			entry->_path = driveRoot;
+			entry->_displayName = Common::String(driveRoot, 2);
+			myList.push_back(entry);
+		}
+
+		return true;
+	}
+#endif
+
 #ifdef __OS2__
 	if (_path == "/") {
 		// Special case for the root dir: List all DOS drives
@@ -287,6 +315,20 @@ bool POSIXFilesystemNode::getChildren(AbstractFSList &myList, ListMode mode, boo
 }
 
 AbstractFSNode *POSIXFilesystemNode::getParent() const {
+#ifdef __DJGPP__
+	// The pseudo root (empty path) has no parent
+	if (_path.empty())
+		return nullptr;
+
+	// A drive root ("C:/") has the pseudo root, which lists the drives, as parent
+	if (_path.size() == 3 && _path[1] == ':' && _path[2] == '/') {
+		POSIXFilesystemNode *root = new POSIXFilesystemNode();
+		root->_isDirectory = true;
+		root->_isValid = true;
+		return root;
+	}
+#endif
+
 	if (_path == "/")
 		return 0;	// The filesystem root has no parent
 
