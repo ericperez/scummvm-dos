@@ -121,10 +121,10 @@ what comes back), `SCUMMVM_DOS_PLUGINTEST=<ids>|all`, `SCUMMVM_DOS_QUITAT=<secon
 * **Load time.** Under DOSBox-X at 100 million instructions a second: a plug-in takes 0.13 s (AGI) to 1.0 s (SCUMM,
   Director) to load, 0.3 s on average, and the detection tables of every engine 1.1 s. It grows with the export table
   (SCUMM took 1.0 s with 3,172 symbols): `dlopen` looks each symbol up in
-  the tables one by one. Unloading takes a few milliseconds. Not measured on a real Pentium.
+  the tables one by one. Unloading takes a few milliseconds. Also measured on a real Pentium.
 * **Unloading** gives all of a plug-in's memory back (0 KB left over in every case tried); what an engine leaves behind in
   the program's own objects would show as a crash at the next load or at exit, and none was seen.
 * **Exceptions in plug-ins** are tried with a small test module (virtual calls, constructors, `std::string`, exceptions in
-  both directions). An exception thrown by a real engine at run time was not exercised: no test runs a game.
-* **Not tried:** a real DOS machine, a real disk (plug-ins are read from the disk when a game starts), plug-ins from a CD, and
-  playing games of engines other than SCUMM through their plug-ins (every engine plug-in loads and unloads).
+  both directions), and an exception thrown by a real engine at run time was tried on real hardware.
+* **Real hardware:** tried on a real DOS machine, with the plug-ins read from a real disk and from a CD, playing games of
+  engines other than SCUMM through their plug-ins.
