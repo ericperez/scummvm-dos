@@ -44,6 +44,16 @@
 #include "ags/lib/freetype-2.1.3/autohint/ahhint.h"
 #endif
 
+#ifdef __DJGPP__
+// DJGPP's C library has no wide-character string functions (no wcslen())
+static size_t wcslen(const wchar_t *s) {
+	const wchar_t *p = s;
+	while (*p)
+		p++;
+	return (size_t)(p - s);
+}
+#endif
+
 namespace AGS3 {
 
 using Graphics::FreeType::Init_FreeType;
