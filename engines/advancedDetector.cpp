@@ -551,6 +551,10 @@ Common::String md5PropToGameFile(MD5Properties flags) {
 static bool getFilePropertiesIntern(uint md5Bytes, const AdvancedMetaEngineBase::FileMap &allFiles, MD5Properties md5prop, const Common::Path &fname, FileProperties &fileProps);
 
 bool AdvancedMetaEngineDetectionBase::getFileProperties(const FileMap &allFiles, MD5Properties md5prop, const Common::Path &fname, FileProperties &fileProps) const {
+	// A plain file that is not in the folder has no properties: no need to build the cache key
+	if (!(md5prop & (kMD5MacResFork | kMD5MacDataFork | kMD5Archive)) && !allFiles.contains(fname))
+		return false;
+
 	Common::String hashname = md5PropToCachePrefix(md5prop);
 		hashname += ':';
 		hashname += fname.toString('/');
@@ -750,6 +754,10 @@ ADDetectedGames AdvancedMetaEngineDetectionBase::detectGame(const Common::FSNode
 			FileProperties tmp;
 			if (getFileProperties(allFiles, md5prop, Common::Path(fname), tmp)) {
 				debugC(3, kDebugGlobalDetection, "> '%s': '%s' %ld", key.c_str(), tmp.md5.c_str(), long(tmp.size));
+			} else if (!(md5prop & (kMD5MacResFork | kMD5MacDataFork | kMD5Archive))) {
+				// A plain file that is not there is as cheap to look up again as to
+				// remember, and a name that is not in the map counts as missing below
+				continue;
 			}
 
 			// Both positive and negative results are cached to avoid
