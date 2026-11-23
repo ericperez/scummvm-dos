@@ -368,6 +368,10 @@ bool ScummDebugger::Cmd_DiMuse(int argc, const char **argv) {
 bool ScummDebugger::Cmd_Room(int argc, const char **argv) {
 	if (argc > 1) {
 		int room = atoi(argv[1]);
+		if (room < 0 || room >= _vm->_numRooms) {
+			debugPrintf("Room %d does not exist (rooms are 0 to %d)\n", room, _vm->_numRooms - 1);
+			return true;
+		}
 		_vm->_actors[_vm->VAR(_vm->VAR_EGO)]->_room = room;
 		_vm->_sound->stopAllSounds();
 		_vm->startScene(room, nullptr, 0);
