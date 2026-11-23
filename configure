@@ -237,6 +237,7 @@ _eventrec=no
 _translation=yes
 # Default platform settings
 _backend=sdl
+_backend_explicit=no
 _16bit=auto
 _highres=auto
 _savegame_timestamp=auto
@@ -949,7 +950,7 @@ Usage: $0 [OPTIONS]...
 
 Configuration:
   -h, --help               display this help and exit
-  --backend=BACKEND        backend to build (3ds, atari, android, dc, ds, ios7,
+  --backend=BACKEND        backend to build (3ds, atari, android, dc, dos, ds, ios7,
                            maemo, n64, null, opendingux, openpandora, psp, psp2,
                            samsungtv, sdl, switch, wii) [sdl]
 
@@ -1619,6 +1620,7 @@ for ac_option in $@; do
 		;;
 	--backend=*)
 		_backend=`echo $ac_option | cut -d '=' -f 2`
+		_backend_explicit=yes
 		;;
 	--enable-debug)
 		_debug_build=yes
@@ -3533,6 +3535,12 @@ EOF
 		append_var DEFINES "-DSYSTEM_NOT_SUPPORTING_D_TYPE"
 		append_var DEFINES "-D_GNU_SOURCE"
 		;;
+	msdosdjgpp)
+		# Default to the dos backend unless --backend was given
+		if test "$_backend_explicit" = no; then
+			_backend="dos"
+		fi
+		;;
 	morphos*)
 		if test "$_debug_build" = no; then
 			_optimization_level=-O2
@@ -4374,6 +4382,9 @@ case $_backend in
 		append_var INCLUDES '-I$(srcdir)/backends/platform/n64'
 		append_var LIBS "-lpakfs -lframfs -ln64 -ln64utils -lromfs"
 		append_var LIBS "-lm -lstdc++ -lz"
+		;;
+	dos)
+		append_var DEFINES "-DUSE_DOS_DRIVER"
 		;;
 	null)
 		append_var DEFINES "-DUSE_NULL_DRIVER"
