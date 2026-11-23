@@ -48,6 +48,7 @@
 #include "base/main.h"
 #include "gui/gui-manager.h"
 
+#include "backends/platform/dos/dos-files.h"
 #include "backends/platform/dos/dos-graphics.h"
 #include "backends/platform/dos/dos-input.h"
 #include "backends/platform/dos/dos-keyboard.h"
@@ -71,6 +72,9 @@ public:
 	void quit() override;
 
 	void logMessage(LogMessageType::Type type, const char *message) override;
+
+	void addSysArchivesToSearchSet(Common::SearchSet &s, int priority) override;
+	Common::String getSystemLanguage() const override;
 
 private:
 	Common::WriteStream *createLogFile();
@@ -182,7 +186,7 @@ void OSystem_DOS::initBackend() {
 
 	_timerManager = new DefaultTimerManager();
 	_eventManager = new DefaultEventManager(this);
-	_savefileManager = new DefaultSaveFileManager();
+	_savefileManager = dosCreateSaveFileManager();
 	_graphicsManager = _dosGfx;
 	_dosMixer = new DOSMixerManager(); // Sound Blaster, or silence without one
 	_mixerManager = _dosMixer;
@@ -521,6 +525,16 @@ void OSystem_DOS::logMessage(LogMessageType::Type type, const char *message) {
 	FILE *output = (type == LogMessageType::kInfo || type == LogMessageType::kDebug) ? stdout : stderr;
 	fputs(message, output);
 	fflush(output);
+}
+
+void OSystem_DOS::addSysArchivesToSearchSet(Common::SearchSet &s, int priority) {
+	// The working directory and DATA inside it, by 8.3 names too
+	dosAddDataFolders(s, priority - 1);
+}
+
+Common::String OSystem_DOS::getSystemLanguage() const {
+	// From the country set in CONFIG.SYS
+	return dosSystemLanguage();
 }
 
 int main(int argc, char *argv[]) {

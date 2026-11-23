@@ -2,6 +2,7 @@ MODULE := backends/platform/dos
 
 MODULE_OBJS := \
 	dos.o \
+	dos-files.o \
 	dos-graphics.o \
 	dos-input.o \
 	dos-keyboard.o \
