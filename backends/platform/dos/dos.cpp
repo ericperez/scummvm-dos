@@ -41,7 +41,6 @@
 #include "backends/events/default/default-events.h"
 #include "backends/log/log.h"
 #include "backends/fs/posix/posix-fs-factory.h"
-#include "backends/mixer/null/null-mixer.h"
 #include "backends/modular-backend.h"
 #include "backends/mutex/null/null-mutex.h"
 #include "backends/saves/default/default-saves.h"
@@ -52,6 +51,7 @@
 #include "backends/platform/dos/dos-graphics.h"
 #include "backends/platform/dos/dos-input.h"
 #include "backends/platform/dos/dos-keyboard.h"
+#include "backends/platform/dos/dos-mixer.h"
 
 class OSystem_DOS : public ModularMixerBackend, public ModularGraphicsBackend, Common::EventSource {
 public:
@@ -65,6 +65,7 @@ public:
 	Common::MutexInternal *createMutex() override;
 	uint32 getMillis(bool skipRecord = false) override;
 	void delayMillis(uint msecs) override;
+	void updateAudio();
 	void getTimeAndDate(TimeDate &td, bool skipRecord = false) const override;
 
 	void quit() override;
@@ -80,6 +81,7 @@ private:
 	void pollInput();
 
 	DOSGraphicsManager *_dosGfx;
+	DOSMixerManager *_dosMixer;
 
 	bool _selfTestsDone;
 
@@ -121,6 +123,7 @@ private:
 
 OSystem_DOS::OSystem_DOS() :
 	_dosGfx(nullptr),
+	_dosMixer(nullptr),
 	_selfTestsDone(false),
 	_startClock(0),
 	_logger(nullptr),
@@ -181,7 +184,8 @@ void OSystem_DOS::initBackend() {
 	_eventManager = new DefaultEventManager(this);
 	_savefileManager = new DefaultSaveFileManager();
 	_graphicsManager = _dosGfx;
-	_mixerManager = new NullMixerManager();
+	_dosMixer = new DOSMixerManager(); // Sound Blaster, or silence without one
+	_mixerManager = _dosMixer;
 	_mixerManager->init();
 
 	dosKeyboardInit();
@@ -208,6 +212,10 @@ void OSystem_DOS::initBackend() {
 	#endif
 
 	BaseBackend::initBackend();
+}
+
+void OSystem_DOS::updateAudio() {
+	_dosMixer->update();
 }
 
 void OSystem_DOS::parseScriptedClicks(const char *spec) {
@@ -407,6 +415,7 @@ bool OSystem_DOS::pollEvent(Common::Event &event) {
 		        (unsigned long)(_go32_dpmi_remaining_virtual_memory() / 1024));
 	}
 	((DefaultTimerManager *)getTimerManager())->checkTimers();
+	updateAudio();
 
 	if (_queueCount == 0)
 		pollInput();
@@ -437,6 +446,9 @@ void OSystem_DOS::delayMillis(uint msecs) {
 	uint32 end = getMillis() + msecs;
 	uint32 now;
 	do {
+		// Nothing else feeds the sound card while the engine waits
+		updateAudio();
+
 		// Timers drive the FM music, so keep them running while we wait
 		if (_timerManager)
 			((DefaultTimerManager *)_timerManager)->checkTimers();
@@ -461,10 +473,13 @@ void OSystem_DOS::getTimeAndDate(TimeDate &td, bool skipRecord) const {
 	td.tm_wday = t.tm_wday;
 }
 
+void dosSoundBlasterShutdown();
+
 void OSystem_DOS::quit() {
 	// Clean up and leave through _exit(): exit() would run atexit handlers of unloaded plug-ins
 	if (_dosGfx)
 		_dosGfx->restoreTextMode();
+	dosSoundBlasterShutdown();
 	dosKeyboardRemove();
 	openLog();
 	delete _logger;
