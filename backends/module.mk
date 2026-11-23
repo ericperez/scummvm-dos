@@ -432,6 +432,13 @@ MODULE_OBJS += \
 	plugins/3ds/3ds-provider.o
 endif
 
+ifeq ($(BACKEND),dos)
+ifdef DYNAMIC_MODULES
+MODULE_OBJS += \
+	plugins/dos/dos-provider.o
+endif
+endif
+
 ifeq ($(BACKEND),atari)
 MODULE_OBJS += \
 	audiocd/atari/atari-audiocd.o \

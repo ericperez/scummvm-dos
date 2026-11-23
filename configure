@@ -3536,6 +3536,11 @@ EOF
 		append_var DEFINES "-D_GNU_SOURCE"
 		;;
 	msdosdjgpp)
+		# Plug-ins (--enable-plugins) are DXE3 modules: see backends/platform/dos/PLUGINS.md
+		if test "$_dynamic_modules" = yes ; then
+			_detection_features_static=no
+			_port_mk="backends/platform/dos/dos.mk"
+		fi
 		# Default to the dos backend unless --backend was given
 		if test "$_backend_explicit" = no; then
 			_backend="dos"
@@ -5317,6 +5322,21 @@ PLUGIN_EXTRA_DEPS =
 PLUGIN_LDFLAGS  += -shared
 PRE_OBJS_FLAGS  := -Wl,-export-dynamic -Wl,-whole-archive
 POST_OBJS_FLAGS := -Wl,-no-whole-archive
+'
+		;;
+	msdosdjgpp)
+		# DXE3 modules. Names are cut to 8 characters (PLUGIN_NAME for the build, PLUGIN_NAME_MAX
+		# for the lookup), the detection plug-in is "detectio" as on MiNT, and dxe-link.sh links them.
+		_plugin_prefix=""
+		_plugin_suffix=".dxe"
+		append_var DEFINES "-DUNCACHED_PLUGINS"
+		append_var DEFINES "-DPLUGIN_DETECTION_NAME=\\\"detectio\\\""
+		append_var DEFINES "-DPLUGIN_NAME_MAX=8"
+_mak_plugins='
+PLUGIN_EXTRA_DEPS =
+PLUGIN_LDFLAGS  +=
+PLUGIN_NAME = $(shell echo "$(1)" | cut -c1-8)
+plugins/%.dxe: LD := sh $(srcdir)/backends/platform/dos/dxe-link.sh
 '
 		;;
 	mintelf)

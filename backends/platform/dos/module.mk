@@ -13,6 +13,11 @@ MODULE_OBJS := \
 	dos-sb.o \
 	dos-vesa.o
 
+# Plug-ins: the export table made by dos.mk, linked ahead of the libraries so what it names is taken from them
+ifdef DYNAMIC_MODULES
+MODULE_OBJS += dos-exports.o
+endif
+
 # The local web server's sockets, over the Watt-32 TCP/IP library
 ifdef USE_SDL_NET
 MODULE_OBJS += dos-net.o

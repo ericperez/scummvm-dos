@@ -48,6 +48,9 @@
 #include "base/main.h"
 #include "gui/gui-manager.h"
 
+#ifdef DYNAMIC_MODULES
+	#include "backends/plugins/dos/dos-provider.h"
+#endif
 #include "backends/platform/dos/dos-cdaudio.h"
 #include "backends/platform/dos/dos-files.h"
 #include "backends/platform/dos/dos-graphics.h"
@@ -417,6 +420,10 @@ bool OSystem_DOS::pollEvent(Common::Event &event) {
 			dosKeyboardSelfTest();
 		if (const char *cdMode = getenv("SCUMMVM_DOS_CDTEST"))
 			dosCdSelfTest(cdMode);
+		#ifdef DYNAMIC_MODULES
+		if (const char *engines = getenv("SCUMMVM_DOS_PLUGINTEST"))
+			dosPluginSelfTest(engines);
+		#endif
 
 		// Testing aid: quit at the first event, after any self-tests
 		if (getenv("SCUMMVM_DOS_TESTEXIT")) {
@@ -573,6 +580,11 @@ Common::String OSystem_DOS::getSystemLanguage() const {
 int main(int argc, char *argv[]) {
 	g_system = new OSystem_DOS();
 	assert(g_system);
+
+	#ifdef DYNAMIC_MODULES
+	// Engines are DXE3 plug-ins in the PLUGINS folder
+	PluginManager::instance().addPluginProvider(new DOSPluginProvider());
+	#endif
 
 	// Invoke the actual ScummVM main entry point:
 	int res = scummvm_main(argc, argv);
