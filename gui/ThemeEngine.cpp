@@ -1819,9 +1819,11 @@ DrawData ThemeEngine::parseDrawDataId(const Common::String &name) const {
  * External data loading
  *********************************************************/
 
-const Graphics::Font *ThemeEngine::loadScalableFont(const Common::String &filename, const int pointsize, Common::String &name) {
+const Graphics::Font *ThemeEngine::loadScalableFont(const Common::String &filename, const int pointsize, Common::String &name, bool sharp) {
 #ifdef USE_FREETYPE2
-	name = Common::String::format("%s@%d", filename.c_str(), pointsize);
+	// Cache a sharp (not anti-aliased) font apart from the smooth one
+	const Graphics::TTFRenderMode renderMode = sharp ? Graphics::kTTFRenderModeMonochrome : Graphics::kTTFRenderModeLight;
+	name = Common::String::format("%s@%d%s", filename.c_str(), pointsize, sharp ? "m" : "");
 
 	// Try already loaded fonts.
 	const Graphics::Font *font = FontMan.getFontByName(name);
@@ -1834,7 +1836,7 @@ const Graphics::Font *ThemeEngine::loadScalableFont(const Common::String &filena
 	for (Common::ArchiveMemberList::const_iterator i = members.begin(), end = members.end(); i != end; ++i) {
 		Common::SeekableReadStream *stream = (*i)->createReadStream();
 		if (stream) {
-			font = Graphics::loadTTFFont(stream, DisposeAfterUse::YES, pointsize, Graphics::kTTFSizeModeCharacter, 0, 0, Graphics::kTTFRenderModeLight);
+			font = Graphics::loadTTFFont(stream, DisposeAfterUse::YES, pointsize, Graphics::kTTFSizeModeCharacter, 0, 0, renderMode);
 
 			if (font)
 				return font;
@@ -1844,7 +1846,7 @@ const Graphics::Font *ThemeEngine::loadScalableFont(const Common::String &filena
 	}
 
 	// Try loading the font from the common fonts archive.
-	font = Graphics::loadTTFFontFromArchive(filename, pointsize, Graphics::kTTFSizeModeCharacter, 0, 0, Graphics::kTTFRenderModeLight);
+	font = Graphics::loadTTFFontFromArchive(filename, pointsize, Graphics::kTTFSizeModeCharacter, 0, 0, renderMode);
 	if (font)
 		return font;
 #endif
@@ -1887,14 +1889,14 @@ const Graphics::Font *ThemeEngine::loadFont(const Common::String &filename, Comm
 	return nullptr;
 }
 
-const Graphics::Font *ThemeEngine::loadFont(const Common::String &filename, const Common::String &scalableFilename, const int pointsize, const bool makeLocalizedFont) {
+const Graphics::Font *ThemeEngine::loadFont(const Common::String &filename, const Common::String &scalableFilename, const int pointsize, const bool makeLocalizedFont, bool sharp) {
 	Common::String fontName;
 
 	const Graphics::Font *font = nullptr;
 
 	// Prefer scalable fonts over non-scalable fonts
 	if (!scalableFilename.empty())
-		font = loadScalableFont(scalableFilename, pointsize, fontName);
+		font = loadScalableFont(scalableFilename, pointsize, fontName, sharp);
 
 	// We can use non-scalable fonts, but only for English
 	bool allowNonScalable = true;
