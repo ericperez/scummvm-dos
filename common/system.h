@@ -644,6 +644,13 @@ public:
 		* EventTests::staleMousePosition()).
 		*/
 		kFeatureStaleMousePositionWorkaround,
+
+		/**
+		 * The backend cannot show more than 256 colours natively (at best it dithers). Game options
+		 * that only make sense in true colour, such as "Use RGB rendering" of the SCI engine, are
+		 * not offered. Off by default: a backend that has the feature is the exception.
+		 */
+		kFeatureNoTrueColor,
 	};
 
 	/**

@@ -24,6 +24,7 @@
 #include "common/file.h"
 #include "common/hashmap.h"
 #include "common/ptr.h"
+#include "common/system.h"
 #include "common/translation.h"
 
 #include "sci/detection.h"
@@ -34,12 +35,19 @@
 
 namespace Sci {
 
+// The RGB renderer is of no use on a backend that cannot show true colour
+static bool isOptionShown(const ADExtraGuiOptionsMap *entry, const Common::String &guiOptions) {
+	if (!checkGameGUIOption(entry->guioFlag, guiOptions))
+		return false;
+	return !(strcmp(entry->guioFlag, GAMEOPTION_RGB_RENDERING) == 0 && g_system->hasFeature(OSystem::kFeatureNoTrueColor));
+}
+
 OptionsWidget::OptionsWidget(GuiObject *boss, const Common::String &name, const Common::String &domain) :
 		OptionsContainerWidget(boss, name, "SciGameOptionsDialog", domain) {
 	_guiOptions = ConfMan.get("guioptions", domain);
 
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions))
+		if (isOptionShown(entry, _guiOptions))
 			_checkboxes[entry->option.configOption] = new GUI::CheckboxWidget(widgetsBoss(), _dialogLayout + "." + entry->option.configOption, _(entry->option.label), _(entry->option.tooltip));
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
@@ -72,7 +80,7 @@ void OptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Common::String &
 
 void OptionsWidget::load() {
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions))
+		if (isOptionShown(entry, _guiOptions))
 			_checkboxes[entry->option.configOption]->setState(ConfMan.getBool(entry->option.configOption, _domain));
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
@@ -86,7 +94,7 @@ void OptionsWidget::load() {
 
 bool OptionsWidget::save() {
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions))
+		if (isOptionShown(entry, _guiOptions))
 			ConfMan.setBool(entry->option.configOption, _checkboxes[entry->option.configOption]->getState(), _domain);
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
