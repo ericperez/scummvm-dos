@@ -130,7 +130,12 @@ static Common::Error identifyGame(const Common::String &debugLevels, const Plugi
 	Common::String gameId = ConfMan.get("gameid");
 
 	// Print text saying what's going on
+#ifdef USE_DOS_DRIVER
+	// In a graphics mode stdout would be drawn in the BIOS font, too small to read
+	g_system->logMessage(LogMessageType::kInfo, Common::String::format("User picked target '%s' (engine ID '%s', game ID '%s')...\n", ConfMan.getActiveDomainName().c_str(), engineId.c_str(), gameId.c_str()).c_str());
+#else
 	printf("User picked target '%s' (engine ID '%s', game ID '%s')...\n", ConfMan.getActiveDomainName().c_str(), engineId.c_str(), gameId.c_str());
+#endif
 
 	// At this point the engine ID and game ID must be known
 	if (engineId.empty()) {
