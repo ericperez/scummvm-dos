@@ -336,6 +336,14 @@ public:
 	virtual void loadDetectionPlugin() {}
 	virtual void unloadDetectionPlugin() {}
 
+	/**
+	 * Whether the detection plugins of all the engines are in memory at the moment, whichever engine
+	 * plugin is loaded. Then a search of the games does not have to load the engine plugins one by one.
+	 */
+	virtual bool isAllDetectionLoaded() const {
+		return false;
+	}
+
 	// Functions used only by the cached PluginManager
 	virtual void loadAllPlugins();
 	virtual void loadAllPluginsOfType(PluginType type);
@@ -371,6 +379,9 @@ public:
 #ifndef DETECTION_STATIC
 	void loadDetectionPlugin() override;
 	void unloadDetectionPlugin() override;
+	bool isAllDetectionLoaded() const override {
+		return _isDetectionLoaded;
+	}
 #endif
 
 	void loadAllPlugins() override {} 	// we don't allow these

@@ -648,6 +648,10 @@ QualifiedGameList EngineManager::findGamesMatching(const Common::String &engineI
 				results.push_back(QualifiedGameDescriptor(engine.getName(), pluginResult));
 			}
 		}
+	} else if (PluginMan.isAllDetectionLoaded()) {
+		// Dynamic detection: the detection plugins of all the engines are in memory, so one look finds the
+		// game (looking once for each engine plugin loaded in turn would list it that many times)
+		results = findGameInLoadedPlugins(gameId);
 	} else {
 		// This is a slow path, we have to scan the list of plugins
 		PluginMan.loadFirstPlugin();
