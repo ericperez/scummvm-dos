@@ -821,6 +821,16 @@ ADDetectedGames AdvancedMetaEngineDetectionBase::detectGame(const Common::FSNode
 			continue;
 		}
 
+		// Most entries need a file the folder does not have: leave those out before building anything
+		if (g->filesDescriptions[0].fileName) {
+			const ADGameFileDescription *first = g->filesDescriptions;
+			Common::String firstKey = md5PropToCachePrefix(gameFileToMD5Props(first, g->flags));
+			firstKey += ':';
+			firstKey += first->fileName;
+			if (!filesProps.contains(firstKey) || filesProps[firstKey].size == -1)
+				continue;
+		}
+
 		ADDetectedGame game(g);
 		bool allFilesPresent = true;
 		int curFilesMatched = 0;
