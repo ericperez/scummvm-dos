@@ -207,7 +207,8 @@ SeekableReadStream *MacResManager::openAppleDoubleWithAppleOrOSXNaming(Archive& 
 		Common::Path newPath = Common::Path::joinComponents(newComponents);
 		stream = archive.createReadStreamForMember(newPath);
 
-		if (!stream) {
+		// Only probe the real file system when the file itself is on it
+		if (!stream && plainFsNode) {
 			Common::FSNode fsn(newPath);
 			if (fsn.exists()) {
 				stream = fsn.createReadStream();
