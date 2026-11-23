@@ -1392,7 +1392,7 @@ void SurfaceSdlGraphicsManager::internUpdateScreen() {
 			dst.y += _maxExtraPixels;	// any pixel to scale it, and we want to avoid mem access crashes.
 
 			if (!blitSurface(origSurf, r, srcSurf, &dst))
-				error("SDL_BlitSurface failed: %s", SDL_GetError());
+				error("SDL_BlitSurface failed (internUpdateScreen): %s", SDL_GetError());
 		}
 
 		SDL_LockSurface(srcSurf);
@@ -1998,7 +1998,7 @@ void SurfaceSdlGraphicsManager::clearOverlay() {
 	if (!_screen || !_tmpscreen)
 		return;
 	if (!blitSurface(_screen, &src, _tmpscreen, &dst))
-		error("SDL_BlitSurface failed: %s", SDL_GetError());
+		error("SDL_BlitSurface failed (clearOverlay): %s", SDL_GetError());
 
 #if SDL_VERSION_ATLEAST(3, 0, 0)
 	const SDL_PixelFormatDetails *pixelFormatDetails = SDL_GetPixelFormatDetails(_tmpscreen->format);
@@ -2607,7 +2607,7 @@ void SurfaceSdlGraphicsManager::drawMouse() {
 	// clipping necessary
 
 	if (!blitSurface(_mouseSurface, nullptr, _hwScreen, &dst))
-		error("SDL_BlitSurface failed: %s", SDL_GetError());
+		error("SDL_BlitSurface failed (drawMouse): %s", SDL_GetError());
 }
 
 #pragma mark -
