@@ -47,6 +47,10 @@
 // RISC OS file names are expected to be 10 characters or less, atomic makes this hard to guarantee
 #define STDIOSTREAM_NO_ATOMIC_SUPPORT
 #endif
+#if defined(__DJGPP__)
+// DOS 8.3 file names have no room for the .tmp suffix of an atomic write
+#define STDIOSTREAM_NO_ATOMIC_SUPPORT
+#endif
 
 StdioStream::StdioStream(void *handle) : _handle(handle), _path(nullptr) {
 	assert(handle);
