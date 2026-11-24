@@ -10,6 +10,9 @@
 #   COPYING.TXT, LICENSES/     the licences
 #
 # fonts-cjk.dat (36 MB, Chinese, Japanese and Korean) is left out.
+#
+# The output folder is erased first: it is generated, and nothing in it is kept. Only the plug-ins this configuration
+# enables are copied (config.mk), not every .dxe an earlier configuration left in the build folder.
 set -e
 
 BUILD=$1
@@ -38,6 +41,47 @@ short() {
   }'
 }
 
+# The program is stripped of its symbol and debug tables (about 4 MB, read by no one on the DOS machine). The build
+# folder keeps the unstripped scummvm.exe for debugging. The strip tool is the one configure chose (STRIP in config.mk).
+STRIP=$(sed -n 's/^STRIP *:= *//p' "$BUILD/config.mk" | head -1)
+if [ -z "$STRIP" ] || ! command -v "$STRIP" > /dev/null 2>&1; then
+  echo "make-dist: no strip tool ($STRIP) on PATH; put the DJGPP bin folder on PATH" >&2
+  exit 1
+fi
+
+# The plug-ins this configuration builds: the engines it marks DYNAMIC_PLUGIN in config.mk, each cut to 8 characters
+# as the build names it (PLUGIN_NAME), and the detection tables. Checked before anything is erased.
+EXPECTED_PLUGINS=
+if defined DYNAMIC_MODULES; then
+  DETECTION=$(grep -o 'PLUGIN_DETECTION_NAME=\\"[a-z0-9_]*' "$BUILD/config.mk" | head -1 | sed 's/.*=\\"//')
+  [ -n "$DETECTION" ] || { echo "make-dist: no PLUGIN_DETECTION_NAME in $BUILD/config.mk" >&2; exit 1; }
+  EXPECTED_PLUGINS="$DETECTION $(grep ' = DYNAMIC_PLUGIN$' "$BUILD/config.mk" | sed 's/^ENABLE_\([A-Za-z0-9_]*\) = .*/\1/' | tr 'A-Z' 'a-z' | cut -c1-8 | tr '\n' ' ')"
+  for id in $EXPECTED_PLUGINS; do
+    [ -f "$BUILD/plugins/$id.dxe" ] || { echo "make-dist: $id.dxe is enabled in $BUILD but was not built (run make -C $BUILD)" >&2; exit 1; }
+  done
+fi
+
+# The output folder is erased before it is filled. It must be a folder of its own: never the root, a home folder, the
+# current folder, the source tree or the build folder, nor a folder that holds any of them.
+if [ -d "$OUT" ]; then
+  OUT_ABS=$(cd "$OUT" && pwd)
+  BUILD_ABS=$(cd "$BUILD" && pwd)
+  refuse() { echo "make-dist: not erasing $OUT_ABS: $1" >&2; exit 2; }
+  [ "$OUT_ABS" != / ] || refuse "it is the root"
+  [ "$OUT_ABS" != "${HOME:-/nonexistent}" ] || refuse "it is a home folder"
+  [ "$OUT_ABS" != "$PWD" ] || refuse "it is the current folder"
+  [ "$OUT_ABS" != "$SRC" ] || refuse "it is the source tree"
+  [ "$OUT_ABS" != "$BUILD_ABS" ] || refuse "it is the build folder"
+  case "$PWD/" in "$OUT_ABS"/*) refuse "it holds the current folder" ;; esac
+  case "$SRC/" in "$OUT_ABS"/*) refuse "it holds the source tree" ;; esac
+  case "$BUILD_ABS/" in "$OUT_ABS"/*) refuse "it holds the build folder" ;; esac
+  case "$OUT_ABS/" in
+    "$SRC"/build-*/*) ;;
+    "$SRC"/*) refuse "it is inside the source tree, outside a build folder" ;;
+  esac
+  rm -rf "$OUT"
+fi
+
 mkdir -p "$OUT/DATA"
 LIST=$(mktemp "${TMPDIR:-/tmp}/dosdist.XXXXXX")
 trap 'rm -f "$LIST"' EXIT
@@ -52,13 +96,6 @@ put() {
   cp "$1" "$OUT/$2/$3"
 }
 
-# The program is stripped of its symbol and debug tables (about 4 MB, read by no one on the DOS machine). The build
-# folder keeps the unstripped scummvm.exe for debugging. The strip tool is the one configure chose (STRIP in config.mk).
-STRIP=$(sed -n 's/^STRIP *:= *//p' "$BUILD/config.mk" | head -1)
-if [ -z "$STRIP" ] || ! command -v "$STRIP" > /dev/null 2>&1; then
-  echo "make-dist: no strip tool ($STRIP) on PATH; put the DJGPP bin folder on PATH" >&2
-  exit 1
-fi
 "$STRIP" --strip-all -o "$OUT/SCUMMVM.EXE" "$BUILD/scummvm.exe"
 echo "./SCUMMVM.EXE" >> "$LIST"
 
@@ -66,8 +103,15 @@ echo "./SCUMMVM.EXE" >> "$LIST"
 # a time. Their names were cut to 8 characters by the build (PLUGIN_NAME in Makefile.common).
 if defined DYNAMIC_MODULES; then
   mkdir -p "$OUT/PLUGINS"
+  for id in $EXPECTED_PLUGINS; do
+    put "$BUILD/plugins/$id.dxe" PLUGINS "$(short "$id.dxe")"
+  done
   for dxe in "$BUILD"/plugins/*.dxe; do
-    put "$dxe" PLUGINS "$(short "$(basename "$dxe")")"
+    id=$(basename "$dxe" .dxe)
+    case " $EXPECTED_PLUGINS " in
+      *" $id "*) ;;
+      *) echo "make-dist: not copying $(basename "$dxe"): not enabled in this build" ;;
+    esac
   done
 fi
 
