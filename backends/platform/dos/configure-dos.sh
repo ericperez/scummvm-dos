@@ -52,8 +52,9 @@ case "$DOS_BACKEND" in
       echo "error: DOS_BACKEND=sdl needs SDL3 built for DJGPP in $DEPS (sh $DOS_DIR/deps/build-sdl3.sh)." >&2
       exit 1
     }
-    # The Dear ImGui debugger would come with SDL: too heavy for a DOS machine.
-    BACKEND_OPTION="--backend=sdl --disable-imgui"
+    # The Dear ImGui debugger would come with SDL: too heavy for a DOS machine. SDL's DOS driver has no OpenGL, so
+    # the OpenGL graphics manager would only be tried and fail, and offered in the Graphics options all the same.
+    BACKEND_OPTION="--backend=sdl --opengl-mode=none --disable-imgui"
     ;;
   *) echo "error: DOS_BACKEND is dos or sdl" >&2; exit 2 ;;
 esac

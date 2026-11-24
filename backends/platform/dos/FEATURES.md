@@ -35,13 +35,32 @@ Legend: **same** = as other builds, **new** = added in the parity work (2026-11-
 | Menu resolution | window size | the monitor's native size from EDID / VBE, up to 1024x768 | same |
 | Aspect ratio correction | option | inherent: 320x200 games use the 4:3 mode and the monitor stretches it | same |
 | OpenGL, OpenGL ES, shaders | yes | no (no GPU API under DOS); the software 3D renderer TinyGL is built in | no |
-| Software scalers (2x/3x, hq2x, edge), filtering, stretch modes | choice in Graphics options | compiled in, no screen driver code uses them: the game is shown 1:1 (doubled when small and high colour) and the monitor scales it | not yet |
+| Software scalers (2x/3x, hq2x, edge), filtering, stretch modes | Graphics options | own backend: not offered, the game is shown 1:1 (doubled when small and high colour) and the monitor scales it; SDL3 build: scalers only (see the Graphics options tab below) | not yet |
+| Games larger than 640x480 | yes | **new**: the smallest 256 colour VESA mode that holds them, the game centred in it (SCUMM's Hercules mode, 720x350, gets 800x600; it used to fail with "Could not switch to resolution") | new |
 | Fullscreen / window | option | always full screen | no |
 | PNG, JPEG, GIF pictures; FreeType fonts | yes | stable and all | same |
 | FriBidi (right-to-left text) | yes | **new**: stable and all (Arabic, Hebrew, Persian: the launcher mirrors and the text runs right to left; tried with Hebrew) | new |
 | Theora, MPEG-2, Bink, Indeo, QuickTime, Smacker video | yes | yes (stable and all) | same |
 | VP8 / VP9 (libvpx) | yes | left out: only SLUDGE games' cutscenes use it; they are skipped (with a log line) and the game goes on | not yet |
 | Screenshots (Alt+S) | PNG | **new**: Alt+S saves `SHOT0001.BMP`, `SHOT0002.BMP`, ... in the current folder (BMP, not PNG) | new |
+
+## The Graphics options tab
+
+The tab offers only what changes something on DOS. What is not offered is not shown, so the rows that are left move
+up (the controls ScummVM leaves out when a backend lacks a feature, and on DOS also the Graphics mode list, which has
+one entry or none, and the Shader controls).
+
+| Control | `--backend=dos` | `--backend=sdl` |
+|---|---|---|
+| Graphics mode | not shown (no modes to choose) | not shown (one: SDL Surface; the build has no OpenGL) |
+| Render mode | yes (CGA, EGA, Hercules... as each game allows) | yes |
+| Rotation mode, Stretch mode | not shown | not shown: the picture is always 1:1 and centred, whatever `rotation_mode` and `stretch_mode` say |
+| Scaler | not shown | yes (Normal, AdvMame, HQ, Edge, SaI...; 2x on a 320x200 game needs a 640x400 or 640x480 16-bit mode) |
+| Shader | not shown | not shown |
+| Aspect ratio correction | not shown (13h is stretched to 4:3 by the monitor) | yes (200 lines drawn as 240 in software) |
+| Fullscreen mode | ticked and greyed out: always full screen | ticked and greyed out: always full screen (it used to be shown unticked and did nothing) |
+| Filter graphics, V-Sync | not shown | not shown: with no renderer they did nothing (`filtering` and `vsync` are ignored) |
+| Game 3D Renderer | yes (Software: TinyGL) | yes (Software: TinyGL) |
 
 ## Input
 
@@ -169,13 +188,15 @@ What the SDL3 build gives up or has not got, and is not done for now:
   switches off the DPMI host's memory protection.
 * **Sample rate.** SDL opens the card at ScummVM's 44.1 kHz; the own backend plays 22 kHz. (`--output-rate=22050` only
   makes SDL convert it back up to 44.1 kHz, and did not change how the sound held up.)
-* **OpenGL.** The launcher tries the OpenGL graphics manager first (a line in the log) and falls back to the surface
-  one; SDL's DOS driver has no GL.
+* **OpenGL.** Left out (`--opengl-mode=none`): SDL's DOS driver has no GL, so the OpenGL graphics manager could only
+  be tried and fail, and its modes were offered in the Graphics options for nothing.
 * **The Dear ImGui debugger** is left out of the build, as it is of the other one.
 
 ## What is left
 
-* Software scalers and a Graphics options page (2x nearest or smooth scaling for 320x200 games).
+* Software scalers on the own backend (2x nearest or smooth scaling for 320x200 games), and the other Graphics
+  options that could work on a Pentium: V-Sync from the page flipping, aspect ratio correction for a 320x200 game
+  shown in a VESA mode.
 * Real hardware: the joystick, the keyboard layouts and CD audio were tried only in DOSBox-X.
 * libvpx would restore SLUDGE's cutscenes; it can be cross-built the same way as the other libraries.
 

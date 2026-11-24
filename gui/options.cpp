@@ -317,9 +317,10 @@ void OptionsDialog::build() {
 
 	// Graphic options
 	if (_fullscreenCheckbox) {
-		_gfxPopUp->setSelected(0);
+		if (_gfxPopUp)
+			_gfxPopUp->setSelected(0);
 
-		if (ConfMan.hasKey("gfx_mode", _domain)) {
+		if (_gfxPopUp && ConfMan.hasKey("gfx_mode", _domain)) {
 			const OSystem::GraphicsMode *gm = g_system->getSupportedGraphicsModes();
 			Common::String gfxMode(ConfMan.get("gfx_mode", _domain));
 			int gfxCount = 1;
@@ -649,7 +650,10 @@ void OptionsDialog::apply() {
 
 			bool isSet = false;
 
-			if ((int32)_gfxPopUp->getSelectedTag() >= 0) {
+			if (!_gfxPopUp) {
+				// No choice offered: whatever is configured stays
+				isSet = true;
+			} else if ((int32)_gfxPopUp->getSelectedTag() >= 0) {
 				const OSystem::GraphicsMode *gm = g_system->getSupportedGraphicsModes();
 
 				while (gm->name) {
@@ -907,7 +911,9 @@ void OptionsDialog::apply() {
 
 			if (gfxError & OSystem::kTransactionShaderChangeFailed) {
 				ConfMan.setPath("shader", previousShader, _domain);
-				if (previousShader.empty() || previousShader == Common::Path("default", Common::Path::kNoSeparator)) {
+				if (!_shader) {
+					// No shader controls
+				} else if (previousShader.empty() || previousShader == Common::Path("default", Common::Path::kNoSeparator)) {
 					_shader->setLabel(Common::Path());
 					_shaderClearButton->setEnabled(false);
 				} else {
@@ -929,7 +935,7 @@ void OptionsDialog::apply() {
 				shader = ConfMan.getPath("shader", _domain);
 
 			// If shader was changed, show the test dialog
-			if (previousShader != shader && !shader.empty() &&
+			if (_shader && previousShader != shader && !shader.empty() &&
 					shader != Common::Path("default", Common::Path::kNoSeparator)) {
 				if (!testGraphicsSettings()) {
 					ConfMan.setPath("shader", previousShader, _domain);
@@ -1138,8 +1144,10 @@ void OptionsDialog::close() {
 void OptionsDialog::handleCommand(CommandSender *sender, uint32 cmd, uint32 data) {
 	switch (cmd) {
 	case kClearShaderCmd:
-		_shader->setLabel(Common::Path());
-		_shaderClearButton->setEnabled(false);
+		if (_shader) {
+			_shader->setLabel(Common::Path());
+			_shaderClearButton->setEnabled(false);
+		}
 		break;
 	case kMidiGainChanged:
 		_midiGainLabel->setLabel(Common::String::format("%.2f", (double)_midiGainSlider->getValue() / 100.0));
@@ -1222,6 +1230,8 @@ void OptionsDialog::handleCommand(CommandSender *sender, uint32 cmd, uint32 data
 		g_gui.scheduleTopDialogRedraw();
 		break;
 	case kChooseShaderCmd: {
+		if (!_shader)
+			break;
 		ShaderBrowserDialog browser(ConfMan.getPath("shader", _domain));
 		if (browser.runModal() > 0) {
 			// User made his choice...
@@ -1268,8 +1278,10 @@ void OptionsDialog::handleOtherEvent(const Common::Event &event) {
 void OptionsDialog::setGraphicSettingsState(bool enabled) {
 	_enableGraphicSettings = enabled;
 
-	_gfxPopUpDesc->setEnabled(enabled);
-	_gfxPopUp->setEnabled(enabled);
+	if (_gfxPopUp) {
+		_gfxPopUpDesc->setEnabled(enabled);
+		_gfxPopUp->setEnabled(enabled);
+	}
 	_renderModePopUpDesc->setEnabled(enabled);
 	_renderModePopUp->setEnabled(enabled);
 	if (_rotationModePopUp) {
@@ -1610,16 +1622,26 @@ void OptionsDialog::addGraphicControls(GuiObject *boss, const Common::String &pr
 		context = "lowres";
 
 	// The GFX mode popup
-	_gfxPopUpDesc = new StaticTextWidget(boss, prefix + "grModePopupDesc", _("Graphics mode:"));
-	if (ConfMan.isKeyTemporary("gfx_mode"))
-		_gfxPopUpDesc->setFontColor(ThemeEngine::FontColor::kFontColorOverride);
-	_gfxPopUp = new PopUpWidget(boss, prefix + "grModePopup");
+	bool offerGfxModes = true;
+#ifdef USE_DOS_DRIVER
+	// The DOS builds have one graphics mode (or none listed): nothing to choose
+	int gfxModeCount = 0;
+	for (const OSystem::GraphicsMode *m = gm; m->name; m++)
+		gfxModeCount++;
+	offerGfxModes = gfxModeCount > 1;
+#endif
+	if (offerGfxModes) {
+		_gfxPopUpDesc = new StaticTextWidget(boss, prefix + "grModePopupDesc", _("Graphics mode:"));
+		if (ConfMan.isKeyTemporary("gfx_mode"))
+			_gfxPopUpDesc->setFontColor(ThemeEngine::FontColor::kFontColorOverride);
+		_gfxPopUp = new PopUpWidget(boss, prefix + "grModePopup");
 
-	_gfxPopUp->appendEntry(_("<default>"));
-	_gfxPopUp->appendEntry(Common::U32String());
-	while (gm->name) {
-		_gfxPopUp->appendEntry(_c(gm->description, context), gm->id);
-		gm++;
+		_gfxPopUp->appendEntry(_("<default>"));
+		_gfxPopUp->appendEntry(Common::U32String());
+		while (gm->name) {
+			_gfxPopUp->appendEntry(_c(gm->description, context), gm->id);
+			gm++;
+		}
 	}
 
 	// RenderMode popup
@@ -1685,21 +1707,28 @@ void OptionsDialog::addGraphicControls(GuiObject *boss, const Common::String &pr
 		}
 	}
 
-	if (!g_gui.useLowResGUI())
-		_shaderButton = new ButtonWidget(boss, prefix + "grShaderButton", _("Shader:"), _("Specifies path to the shader used for scaling the game screen"), kChooseShaderCmd);
-	else
-		_shaderButton = new ButtonWidget(boss, prefix + "grShaderButton", _c("Shader Path:", "lowres"), _("Specifies path to the shader used for scaling the game screen"), kChooseShaderCmd);
-	_shader = new PathWidget(boss, prefix + "grShader", Common::Path(), _c("None", "shader"), _("Specifies path to the shader used for scaling the game screen"));
+	bool offerShaders = true;
+#ifdef USE_DOS_DRIVER
+	// No shaders on DOS
+	offerShaders = g_system->hasFeature(OSystem::kFeatureShaders);
+#endif
+	if (offerShaders) {
+		if (!g_gui.useLowResGUI())
+			_shaderButton = new ButtonWidget(boss, prefix + "grShaderButton", _("Shader:"), _("Specifies path to the shader used for scaling the game screen"), kChooseShaderCmd);
+		else
+			_shaderButton = new ButtonWidget(boss, prefix + "grShaderButton", _c("Shader Path:", "lowres"), _("Specifies path to the shader used for scaling the game screen"), kChooseShaderCmd);
+		_shader = new PathWidget(boss, prefix + "grShader", Common::Path(), _c("None", "shader"), _("Specifies path to the shader used for scaling the game screen"));
 
-	_shaderClearButton = addClearButton(boss, prefix + "grShaderClearButton", kClearShaderCmd);
+		_shaderClearButton = addClearButton(boss, prefix + "grShaderClearButton", kClearShaderCmd);
 
 #ifdef USE_HTTP
 #ifndef EMSCRIPTEN // No shader updates on Emscripten, they are always loaded directly from server
-	_updateShadersButton = new ButtonWidget(boss, prefix + "UpdateShadersButton", _("Download Shaders"), _("Check on the scummvm.org website for updates of shader packs"), kUpdateShadersCmd);
+		_updateShadersButton = new ButtonWidget(boss, prefix + "UpdateShadersButton", _("Download Shaders"), _("Check on the scummvm.org website for updates of shader packs"), kUpdateShadersCmd);
 #endif
 #endif
 
-	enableShaderControls(g_system->hasFeature(OSystem::kFeatureShaders));
+		enableShaderControls(g_system->hasFeature(OSystem::kFeatureShaders));
+	}
 
 	// Fullscreen checkbox
 	_fullscreenCheckbox = new CheckboxWidget(boss, prefix + "grFullscreenCheckbox", _("Fullscreen mode"), Common::U32String(), kFullscreenToggled);
@@ -1751,6 +1780,9 @@ void OptionsDialog::addGraphicControls(GuiObject *boss, const Common::String &pr
 }
 
 void OptionsDialog::enableShaderControls(bool enable) {
+	if (!_shaderButton)
+		return;
+
 	_shaderButton->setEnabled(enable);
 	_shader->setEnabled(enable);
 	_shaderClearButton->setVisible(enable);
@@ -2098,8 +2130,10 @@ void OptionsDialog::setupGraphicsTab() {
 	}
 	if (!_fullscreenCheckbox)
 		return;
-	_gfxPopUpDesc->setVisible(true);
-	_gfxPopUp->setVisible(true);
+	if (_gfxPopUp) {
+		_gfxPopUpDesc->setVisible(true);
+		_gfxPopUp->setVisible(true);
+	}
 	if (g_system->hasFeature(OSystem::kFeatureStretchMode)) {
 		_stretchPopUpDesc->setVisible(true);
 		_stretchPopUp->setVisible(true);

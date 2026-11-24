@@ -567,7 +567,7 @@ OSystem::TransactionError DOSGraphicsManager::endGFXTransaction() {
 	_dither = false; // an ordinary 256 colour game: the game's own palette
 	#endif
 
-	if (_pendingW == 0 || _pendingH == 0 || _pendingW > kMaxWidth || _pendingH > kMaxHeight)
+	if (_pendingW == 0 || _pendingH == 0 || _pendingW > kGuiMaxWidth || _pendingH > kGuiMaxHeight)
 		return OSystem::kTransactionSizeChangeFailed;
 
 	// 320x200 or smaller fits VGA mode 13h; anything up to 640x480 (the
@@ -580,12 +580,27 @@ OSystem::TransactionError DOSGraphicsManager::endGFXTransaction() {
 	if (forced && atoi(forced) == 640)
 		small = false;
 
+	// Larger still (SCUMM's Hercules mode is 720x350): the smallest VESA mode the card has that holds it
+	int physW = small ? kVgaWidth : kMaxWidth;
+	int physH = small ? kVgaHeight : kMaxHeight;
+	if (_pendingW > kMaxWidth || _pendingH > kMaxHeight) {
+		DosModeSize modes[64];
+		DosModeSize best = { 0, 0 };
+		int count = VesaDisplay::listModes(modes, 64);
+		if (!dosChooseGameMode(modes, count, _pendingW, _pendingH, kGuiMaxWidth, kGuiMaxHeight, best)) {
+			warning("DOSGFX: no 256 colour VESA mode holds a %ux%u screen", _pendingW, _pendingH);
+			return OSystem::kTransactionSizeChangeFailed;
+		}
+		physW = best.w;
+		physH = best.h;
+	}
+
 	// The launcher asks for 320x200 too, but gets the GUI mode (see chooseGuiMode())
 	bool modeOk;
 	if (small && isLauncherContext())
 		modeOk = setLauncherMode();
 	else
-		modeOk = setPhysicalMode(small ? kVgaWidth : kMaxWidth, small ? kVgaHeight : kMaxHeight);
+		modeOk = setPhysicalMode(physW, physH);
 	if (!modeOk)
 		return OSystem::kTransactionSizeChangeFailed;
 

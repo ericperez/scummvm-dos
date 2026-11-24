@@ -196,4 +196,41 @@ public:
 		const DosModeSize big[] = { {1280, 1024} };
 		TS_ASSERT(!dosChooseGuiMode(big, 1, 1024, 768, false, 0, 0, out));
 	}
+
+	void test_game_mode_for_a_hercules_screen() {
+		// Listed largest first, as a card may: the smallest that holds 720x350 is taken
+		const DosModeSize modes[] = { {1280, 1024}, {1024, 768}, {800, 600}, {640, 480}, {640, 400}, {320, 200} };
+		DosModeSize out = { 0, 0 };
+		TS_ASSERT(dosChooseGameMode(modes, 6, 720, 350, 1600, 1200, out));
+		TS_ASSERT_EQUALS(out.w, 800);
+		TS_ASSERT_EQUALS(out.h, 600);
+	}
+
+	void test_game_mode_needs_both_sides() {
+		// 1024x300 is wide enough but too short, 640x480 tall enough but too narrow
+		const DosModeSize modes[] = { {640, 480}, {1024, 300}, {1024, 768} };
+		DosModeSize out = { 0, 0 };
+		TS_ASSERT(dosChooseGameMode(modes, 3, 720, 350, 1600, 1200, out));
+		TS_ASSERT_EQUALS(out.w, 1024);
+		TS_ASSERT_EQUALS(out.h, 768);
+
+		TS_ASSERT(dosChooseGameMode(modes, 3, 640, 480, 1600, 1200, out));   // an exact fit
+		TS_ASSERT_EQUALS(out.w, 640);
+		TS_ASSERT_EQUALS(out.h, 480);
+	}
+
+	void test_game_mode_within_the_limit() {
+		const DosModeSize modes[] = { {640, 480}, {1024, 768} };
+		DosModeSize out = { 0, 0 };
+		TS_ASSERT(!dosChooseGameMode(modes, 2, 720, 350, 800, 600, out));    // 1024x768 is over the limit
+		TS_ASSERT(!dosChooseGameMode(nullptr, 0, 720, 350, 1600, 1200, out));
+	}
+
+	void test_game_mode_with_a_mode_list_that_has_nothing_big_enough() {
+		const DosModeSize modes[] = { {320, 200}, {640, 400}, {640, 480} };
+		DosModeSize out = { 7, 7 };
+		TS_ASSERT(!dosChooseGameMode(modes, 3, 720, 350, 1600, 1200, out));
+		TS_ASSERT_EQUALS(out.w, 7);                                          // untouched when there is none
+		TS_ASSERT_EQUALS(out.h, 7);
+	}
 };

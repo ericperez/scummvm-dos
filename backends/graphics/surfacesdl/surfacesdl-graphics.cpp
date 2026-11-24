@@ -230,12 +230,20 @@ SurfaceSdlGraphicsManager::SurfaceSdlGraphicsManager(SdlEventSource *sdlEventSou
 	_scaler = nullptr;
 	_maxExtraPixels = ScalerMan.getMaxExtraPixels();
 
+#ifdef USE_DOS_SDL
+	// Whatever the configuration says: these are not features on DOS (hasFeature())
+	_videoMode.fullscreen = true;
+	_videoMode.filtering = false;
+	_videoMode.stretchMode = STRETCH_CENTER;
+	_videoMode.vsync = false;
+#else
 	_videoMode.fullscreen = ConfMan.getBool("fullscreen");
 	_videoMode.filtering = ConfMan.getBool("filtering");
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	_videoMode.stretchMode = STRETCH_FIT;
 #endif
 	_videoMode.vsync = ConfMan.getBool("vsync");
+#endif
 
 	_videoMode.scalerIndex = getDefaultScaler();
 	_videoMode.scaleFactor = getDefaultScaleFactor();
@@ -261,18 +269,24 @@ SurfaceSdlGraphicsManager::~SurfaceSdlGraphicsManager() {
 
 bool SurfaceSdlGraphicsManager::hasFeature(OSystem::Feature f) const {
 	return
+#ifndef USE_DOS_SDL
+		// DOS: always full screen, and with no renderer the picture is shown 1:1, unfiltered, unrotated and
+		// without waiting for the retrace (see SDL_SetVideoMode())
 		(f == OSystem::kFeatureFullscreenMode) ||
+#endif
 #ifdef USE_SCALERS
 		(f == OSystem::kFeatureScalers) ||
 #endif
 #ifdef USE_ASPECT
 		(f == OSystem::kFeatureAspectRatioCorrection) ||
 #endif
+#ifndef USE_DOS_SDL
 		(f == OSystem::kFeatureFilteringMode) ||
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 		(f == OSystem::kFeatureStretchMode) ||
 		(f == OSystem::kFeatureRotationMode) ||
 		(f == OSystem::kFeatureVSync) ||
+#endif
 #endif
 		(f == OSystem::kFeatureCursorPalette) ||
 		(f == OSystem::kFeatureCursorAlpha && !_isHwPalette) ||
@@ -750,13 +764,24 @@ const OSystem::GraphicsMode *SurfaceSdlGraphicsManager::getSupportedStretchModes
 }
 
 int SurfaceSdlGraphicsManager::getDefaultStretchMode() const {
+#ifdef USE_DOS_SDL
+	return STRETCH_CENTER;
+#else
 	return STRETCH_FIT;
+#endif
 }
 
 bool SurfaceSdlGraphicsManager::setStretchMode(int mode) {
 	Common::StackLock lock(_graphicsMutex);
 
 	assert(_transactionMode == kTransactionActive);
+
+#ifdef USE_DOS_SDL
+	// The game's pixels are drawn 1:1 into the middle of the screen; the mouse has to be mapped the same way
+	if (mode != STRETCH_CENTER)
+		debug(1, "DOS: stretch mode %d ignored, the screen is always centred 1:1", mode);
+	return true;
+#endif
 
 	if (_oldVideoMode.setup && _oldVideoMode.stretchMode == mode)
 		return true;
@@ -1736,6 +1761,11 @@ void SurfaceSdlGraphicsManager::setAspectRatioCorrection(bool enable) {
 
 void SurfaceSdlGraphicsManager::setFilteringMode(bool enable) {
 	Common::StackLock lock(_graphicsMutex);
+
+#ifdef USE_DOS_SDL
+	// Not a feature on DOS (hasFeature()): the aspect ratio stretch stays unfiltered whatever the configuration says
+	return;
+#endif
 
 	if (_oldVideoMode.setup && _oldVideoMode.filtering == enable)
 		return;

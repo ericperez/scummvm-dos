@@ -75,6 +75,12 @@ public:
 	bool setStretchMode(int mode) override;
 	int getStretchMode() const override;
 #endif
+#ifdef USE_DOS_SDL
+	// The screen is never rotated on DOS: the window's surface is drawn as it is
+	bool setRotationMode(Common::RotationMode rotation) override {
+		return rotation == Common::kRotationNormal;
+	}
+#endif
 	void initSize(uint w, uint h, const Graphics::PixelFormat *format = NULL) override;
 	int getScreenChangeID() const override { return _screenChangeCount; }
 

@@ -175,4 +175,24 @@ static inline bool dosChooseGuiMode(const DosModeSize *modes, int count, int max
 	return dosPickLargest(modes, count, limW, limH, 4, 3, out);
 }
 
+/**
+ * The mode for a game screen of w x h that does not fit the 640x480 one (SCUMM's Hercules mode is
+ * 720x350): the smallest of the card's modes that holds it, no larger than maxW x maxH; false if none
+ */
+static inline bool dosChooseGameMode(const DosModeSize *modes, int count, int w, int h,
+                                     int maxW, int maxH, DosModeSize &out) {
+	bool found = false;
+	for (int i = 0; i < count; i++) {
+		const DosModeSize &m = modes[i];
+		if (m.w < w || m.h < h || m.w > maxW || m.h > maxH)
+			continue;
+
+		if (!found || (long)m.w * m.h < (long)out.w * out.h) {
+			out = m;
+			found = true;
+		}
+	}
+	return found;
+}
+
 #endif
