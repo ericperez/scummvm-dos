@@ -52,7 +52,14 @@ put() {
   cp "$1" "$OUT/$2/$3"
 }
 
-cp "$BUILD/scummvm.exe" "$OUT/SCUMMVM.EXE"
+# The program is stripped of its symbol and debug tables (about 4 MB, read by no one on the DOS machine). The build
+# folder keeps the unstripped scummvm.exe for debugging. The strip tool is the one configure chose (STRIP in config.mk).
+STRIP=$(sed -n 's/^STRIP *:= *//p' "$BUILD/config.mk" | head -1)
+if [ -z "$STRIP" ] || ! command -v "$STRIP" > /dev/null 2>&1; then
+  echo "make-dist: no strip tool ($STRIP) on PATH; put the DJGPP bin folder on PATH" >&2
+  exit 1
+fi
+"$STRIP" --strip-all -o "$OUT/SCUMMVM.EXE" "$BUILD/scummvm.exe"
 echo "./SCUMMVM.EXE" >> "$LIST"
 
 # A plug-in build (the default; DOS_STATIC=1 makes the other kind): the engines and the detection tables are DXE modules in PLUGINS, loaded one at
