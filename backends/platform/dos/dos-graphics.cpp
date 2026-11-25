@@ -189,6 +189,8 @@ bool DOSGraphicsManager::setPhysicalMode(int width, int height) {
 			return false;
 		}
 		_useVesa = true;
+		// In a graphics mode first, so that its message goes to the log only
+		_modeSet = true;
 		setupPageFlipping();
 	}
 
@@ -1766,8 +1768,8 @@ bool DOSGraphicsManager::setPhysicalDirect(const VesaDirectMode &m) {
 	}
 
 	_useVesa = true;
-	setupPageFlipping();
 	_modeSet = true;
+	setupPageFlipping();
 	_physW = m.width;
 	_physH = m.height;
 	_physBpp = 2;

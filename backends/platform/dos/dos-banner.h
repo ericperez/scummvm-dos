@@ -37,12 +37,12 @@ struct DosBannerLayout {
 	int maxLines; ///< lines that fit down
 };
 
-/** The layout for a screen this size: text as large as on 320x200, where the font is doubled */
+/** The layout for a screen this size: text as large as on 320x200, where the font is drawn 1:1 */
 static inline DosBannerLayout dosBannerLayout(int width, int height) {
 	const int byWidth = width / 320, byHeight = height / 200;
-	int scale = 2 * (byWidth < byHeight ? byWidth : byHeight);
-	if (scale < 2)
-		scale = 2;
+	int scale = byWidth < byHeight ? byWidth : byHeight;
+	if (scale < 1)
+		scale = 1;
 
 	DosBannerLayout l;
 	l.scale = scale;

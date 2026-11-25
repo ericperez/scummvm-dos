@@ -124,7 +124,7 @@ public:
 		return _modeSet;
 	}
 
-	/** Show a line of text in large type at the top of the screen, until something is drawn. */
+	/** Show a line of text at the top of the screen, until something is drawn. */
 	void showBanner(const char *text);
 
 	/** Return to 80x25 text mode. Safe to call more than once. */
