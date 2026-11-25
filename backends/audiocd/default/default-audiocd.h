@@ -51,6 +51,9 @@ public:
 	Status getStatus() const override; // Subclasses should override for better status results
 	bool existExtractedCDAudioFiles(uint track) override;
 	bool isDataAndCDAudioReadFromSameCD() override { return false; }
+	bool isAudioDiscInDrive() override {
+		return false;
+	}
 
 private:
 	void fillPotentialTrackNames(Common::Array<Common::String> &trackNames, int track) const;

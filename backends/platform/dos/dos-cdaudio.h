@@ -31,8 +31,15 @@ class AudioCDManager;
 AudioCDManager *dosCreateAudioCDManager();
 
 /**
+ * Stop the drive and put back the sound card's CD input if it was raised, for a program that
+ * leaves through _exit(), past the CD manager's destructor.
+ */
+void dosCdShutdown();
+
+/**
  * Testing aid (SCUMMVM_DOS_CDTEST=drive|nodrive): logs "CDTEST:" lines, ending in "CDTEST: OK
- * <n> checks". "drive" expects the CD tests/gen-test-cd.py writes, "nodrive" a track2.wav file.
+ * <n> checks". "drive" expects the CD tests/gen-test-cd.py writes and an SB16 in BLASTER,
+ * "nodrive" a track2.wav file.
  */
 void dosCdSelfTest(const char *mode);
 

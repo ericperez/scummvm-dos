@@ -519,6 +519,7 @@ void OSystem_DOS::quit() {
 	// Clean up and leave through _exit(): exit() would run atexit handlers of unloaded plug-ins
 	if (_dosGfx)
 		_dosGfx->restoreTextMode();
+	dosCdShutdown();
 	dosSoundBlasterShutdown();
 	dosOplSilence();
 	dosKeyboardRemove();

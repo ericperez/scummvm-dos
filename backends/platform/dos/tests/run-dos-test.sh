@@ -3,7 +3,7 @@
 # VESA, a packet driver, DXE loading). None needs a game. Usage: run-dos-test.sh <name>
 #
 #   kbd             layout characters reach the decoder (German layout, KEYB)
-#   cd              CD audio tracks of a CD image play and stop through MSCDEX
+#   cd              CD audio tracks of a CD image play and stop through MSCDEX, with no rip-the-tracks dialog
 #   nocd            without a CD drive the program says so and carries on
 #   net             the local web server answers a browser (emulated network card)
 #   pageflip        page flipping at 640x480x8: the display matches the picture every frame
@@ -138,6 +138,10 @@ case "$NAME" in
     echo "$LOG" | grep -q "CDTEST: disc tracks 1-3 lengths 300,450,225" || fail "the table of contents of the disc was not read right"
     echo "$LOG" | grep -q "CDTEST: FAILED" && fail "a CD audio check failed"
     echo "$LOG" | grep -q "CDTEST: OK" || fail "the CD audio self-test did not finish"
+    # The engines' rip-the-tracks warning saw the disc and only logged; the SB16's silent CD input was raised
+    echo "$LOG" | grep -q "No extracted CD audio tracks found: playing them from the CD in the drive" \
+      || fail "the missing-tracks warning did not see the CD in the drive"
+    echo "$LOG" | grep -q "the sound card's CD input was silent: SB16 mixer" || fail "the silent CD input was not raised"
     ok "$(echo "$LOG" | grep 'CDTEST: OK' | sed 's/.*CDTEST: OK //; s/!$//')"
     ;;
 

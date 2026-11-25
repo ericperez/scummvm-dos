@@ -31,6 +31,7 @@
 enum {
 	kDosCdFramesPerSecond = 75,
 	kDosCdFramesPerMinute = 75 * 60,
+	kDosCdLeadIn = 150,          ///< the frames before 00:02:00, where HSG sector 0 is
 	kDosCdMaxTrack = 99
 };
 
@@ -46,6 +47,11 @@ inline uint32 dosCdFramesToRedBook(uint32 frames) {
 inline uint32 dosCdRedBookToFrames(uint32 address) {
 	return (address & 0xFF) + ((address >> 8) & 0xFF) * kDosCdFramesPerSecond +
 	       ((address >> 16) & 0xFF) * kDosCdFramesPerMinute;
+}
+
+/** The HSG sector of a frame counted as Red Book addresses count */
+inline uint32 dosCdFramesToHsg(uint32 frames) {
+	return frames >= kDosCdLeadIn ? frames - kDosCdLeadIn : 0;
 }
 
 inline uint32 dosCdFramesToMillis(uint32 frames) {
@@ -77,6 +83,16 @@ struct DosCdToc {
 			return 0;
 		const uint32 end = (track == last) ? leadOut : start[track + 1];
 		return end > start[track] ? end - start[track] : 0;
+	}
+
+	bool hasMusic() const {
+		if (!valid())
+			return false;
+		for (int track = first; track <= last; track++) {
+			if (!data[track])
+				return true;
+		}
+		return false;
 	}
 };
 
@@ -136,6 +152,7 @@ enum {
 	// What an IOCTL request asks for: the first byte of its control block
 
 	kDosCdIoctlAudioChannels = 4,    ///< input: the volume the drive plays at
+	kDosCdIoctlDeviceStatus = 6,
 	kDosCdIoctlDiscInfo = 10,
 	kDosCdIoctlTrackInfo = 11,
 	kDosCdIoctlAudioStatus = 15,
@@ -175,11 +192,14 @@ inline void dosCdFillHeader(uint8 *request, int length, int command) {
 	request[2] = (uint8)command;
 }
 
-/** Play audio, with the start in Red Book form: the 22 bytes of the request */
+/**
+ * Play audio from a frame of the disc (00:02:00 is frame 150): the 22 bytes of the request. The
+ * start is an HSG sector, which every driver takes; Red Book addressing is optional.
+ */
 inline int dosCdBuildPlay(uint8 *request, uint32 startFrame, uint32 frames) {
 	dosCdFillHeader(request, kDosCdPlayRequestSize, kDosCdCmdPlay);
-	request[13] = 1;                                         // addressing mode: Red Book (0 is HSG)
-	dosCdPut32(request + 14, dosCdFramesToRedBook(startFrame));
+	request[13] = 0;                                         // addressing mode: HSG
+	dosCdPut32(request + 14, dosCdFramesToHsg(startFrame));
 	dosCdPut32(request + 18, frames);
 	return kDosCdPlayRequestSize;
 }
@@ -215,7 +235,34 @@ inline bool dosCdStatusPlaying(uint16 status) {
 
 // ---- Control blocks ----
 
-enum { kDosCdDiscInfoSize = 7, kDosCdTrackInfoSize = 7, kDosCdChannelsSize = 9, kDosCdAudioStatusSize = 11 };
+enum {
+	kDosCdDeviceStatusSize = 5,
+	kDosCdDiscInfoSize = 7,
+	kDosCdTrackInfoSize = 7,
+	kDosCdChannelsSize = 9,
+	kDosCdAudioStatusSize = 11
+};
+
+// Device status bits
+enum {
+	kDosCdDevicePlaysAudio = 1 << 4,
+	kDosCdDeviceSetsVolume = 1 << 8,
+	kDosCdDeviceNoDisc = 1 << 11
+};
+
+/** Device status: what the driver can do, and whether there is a disc */
+inline void dosCdBuildDeviceStatus(uint8 *block) {
+	for (int i = 0; i < kDosCdDeviceStatusSize; i++)
+		block[i] = 0;
+	block[0] = kDosCdIoctlDeviceStatus;
+}
+
+inline bool dosCdParseDeviceStatus(const uint8 *block, uint32 &status) {
+	if (block[0] != kDosCdIoctlDeviceStatus)
+		return false;
+	status = dosCdGet32(block + 1);
+	return true;
+}
 
 /** Audio status: all that is asked of it is the status word of the answer (busy: playing) */
 inline void dosCdBuildAudioStatus(uint8 *block) {
@@ -359,6 +406,102 @@ inline int dosCdDriveLetter(const char *text) {
 	if (text[1] == ':' && text[2] != 0 && text[2] != '\\' && text[2] != '/')
 		return -1;
 	return letter;
+}
+
+// ---- The sound card's CD input ----
+// The drive's music goes by cable to the sound card, which mixes its CD input in at the level its
+// mixer is set to. A Sound Blaster 16's mixer has that level at 0 until a mixer program sets it.
+
+enum DosCdMixer {
+	kDosCdNoMixer,
+	kDosCdMixerSbPro,   ///< CT1345: CD volume in register 0x28, the left side in the high nibble
+	kDosCdMixerSb16     ///< CT1745: CD volume in 0x36 (left) and 0x37 (right), output switches in 0x3C
+};
+
+enum {
+	kDosCdMixerSbProVoice = 0x04,
+	kDosCdMixerSbProCd = 0x28,
+	kDosCdMixerSb16VoiceLeft = 0x32,
+	kDosCdMixerSb16VoiceRight = 0x33,
+	kDosCdMixerSb16CdLeft = 0x36,
+	kDosCdMixerSb16CdRight = 0x37,
+	kDosCdMixerSb16Switches = 0x3C,
+	kDosCdMixerSb16SwitchesCd = 0x06    ///< CD left (bit 2) and right (bit 1) in the output
+};
+
+inline unsigned dosCdBlasterNumber(const char *&p, unsigned radix) {
+	unsigned value = 0;
+	for (;; p++) {
+		const char c = (*p >= 'A' && *p <= 'Z') ? (char)(*p - 'A' + 'a') : *p;
+		unsigned digit;
+		if (c >= '0' && c <= '9')
+			digit = c - '0';
+		else if (radix == 16 && c >= 'a' && c <= 'f')
+			digit = c - 'a' + 10;
+		else
+			return value;
+		value = value * radix + digit;
+	}
+}
+
+/**
+ * The mixer of the card a BLASTER variable such as "A220 I5 D1 H5 T6" describes, and its port:
+ * T6 or a 16-bit DMA channel (H) is an SB16, T2, T4 and T5 an SB Pro
+ */
+inline DosCdMixer dosCdBlasterMixer(const char *blaster, unsigned &base) {
+	base = 0;
+	unsigned type = 0;
+	bool highDma = false;
+	const char *p = blaster;
+	while (p && *p) {
+		if (*p == ' ') {
+			p++;
+			continue;
+		}
+		const char tag = *p++;
+		if (tag == 'A' || tag == 'a')
+			base = dosCdBlasterNumber(p, 16);
+		else if (tag == 'T' || tag == 't')
+			type = dosCdBlasterNumber(p, 10);
+		else if ((tag == 'H' || tag == 'h') && *p >= '0' && *p <= '9')
+			highDma = true;
+		while (*p && *p != ' ')
+			p++;
+	}
+
+	if (!base)
+		return kDosCdNoMixer;
+	if (type == 6 || highDma)
+		return kDosCdMixerSb16;
+	if (type == 2 || type == 4 || type == 5)
+		return kDosCdMixerSbPro;
+	return kDosCdNoMixer;
+}
+
+/**
+ * SB16: the level to set a silent CD input to (both sides at 0), the voice's level, or 24 of 31
+ * if that is 0 too; false if either side is above 0, which is left as the user set it
+ */
+inline bool dosCdSb16CdLevel(uint8 cdLeft, uint8 cdRight, uint8 voice, uint8 &level) {
+	if ((cdLeft >> 3) != 0 || (cdRight >> 3) != 0)
+		return false;
+	level = (voice >> 3) != 0 ? (uint8)(voice & 0xF8) : (uint8)(24 << 3);
+	return true;
+}
+
+/** SB16 output switches with the CD let through, unless one of its sides already is */
+inline uint8 dosCdSb16Switches(uint8 switches) {
+	if (switches & kDosCdMixerSb16SwitchesCd)
+		return switches;
+	return (uint8)(switches | kDosCdMixerSb16SwitchesCd);
+}
+
+/** SB Pro: the same for its CD volume (3 bits a side, in bits 7-5 and 3-1), from the voice's */
+inline bool dosCdSbProCdLevel(uint8 cd, uint8 voice, uint8 &level) {
+	if (((cd >> 5) & 7) != 0 || ((cd >> 1) & 7) != 0)
+		return false;
+	level = (((voice >> 5) & 7) != 0 || ((voice >> 1) & 7) != 0) ? voice : (uint8)0xCC;
+	return true;
 }
 
 #endif

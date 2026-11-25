@@ -608,9 +608,15 @@ bool Engine::isDataAndCDAudioReadFromSameCD() {
  * no extracted (ripped) audio files were found.
  *
  * This method only shows the warning. It does not check for the
- * existence of the ripped audio files.
+ * existence of the ripped audio files. When the system plays the
+ * tracks from the CD in its drive, it only logs that.
  */
 void Engine::warnMissingExtractedCDAudio() {
+	if (g_system->getAudioCDManager()->isAudioDiscInDrive()) {
+		warning("No extracted CD audio tracks found: playing them from the CD in the drive");
+		return;
+	}
+
 	// Display a modal informative dialogue for the case when:
 	// - The game has audio tracks,
 	// - and the tracks have not been ripped.

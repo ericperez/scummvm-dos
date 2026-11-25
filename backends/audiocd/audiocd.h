@@ -130,6 +130,12 @@ public:
 	 * @return true, if this case is applicable, and the system doesn't allow it.
 	 */
 	virtual bool isDataAndCDAudioReadFromSameCD() = 0;
+
+	/**
+	 * Checks if the CD drive that CD audio is played from holds a CD with audio tracks.
+	 * @return true, if this case is applicable, so the tracks play without being extracted.
+	 */
+	virtual bool isAudioDiscInDrive() = 0;
 };
 
 #endif

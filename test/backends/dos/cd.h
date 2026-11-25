@@ -3,9 +3,9 @@
 #include "backends/platform/dos/dos-cd.h"
 
 /**
- * The CD audio logic of the DOS port: Red Book addresses, which frames a track (or part of one) is,
- * the requests sent to MSCDEX's device driver and the answers read from it, volume, and the
- * bookkeeping of a track that plays more than once. See dos-cd.h.
+ * The CD audio logic of the DOS port: Red Book addresses and HSG sectors, which frames a track (or
+ * part of one) is, the requests sent to MSCDEX's device driver and the answers read from it, volume,
+ * the bookkeeping of a track that plays more than once, and the sound card's CD input. See dos-cd.h.
  */
 class DosCdTestSuite : public CxxTest::TestSuite {
 	/** A disc of three tracks: 1 is 4 seconds from 00:02:00, 2 is 6 seconds, 3 is 3 seconds */
@@ -165,6 +165,14 @@ public:
 		TS_ASSERT_EQUALS(range.start, 450u);
 	}
 
+	void test_hsg_sectors() {
+		TS_ASSERT_EQUALS(dosCdFramesToHsg(150), 0u);             // 00:02:00, where track 1 starts
+		TS_ASSERT_EQUALS(dosCdFramesToHsg(151), 1u);
+		TS_ASSERT_EQUALS(dosCdFramesToHsg(4580), 4430u);         // 01:01:05
+		TS_ASSERT_EQUALS(dosCdFramesToHsg(0), 0u);               // inside the lead-in: its start
+		TS_ASSERT_EQUALS(dosCdFramesToHsg(149), 0u);
+	}
+
 	void test_play_request_layout() {
 		uint8 request[kDosCdPlayRequestSize];
 		memset(request, 0xEE, sizeof(request));
@@ -177,18 +185,21 @@ public:
 		TS_ASSERT_EQUALS(dosCdGet16(request + 3), 0);            // status: the driver fills it in
 		for (int i = 5; i < 13; i++)
 			TS_ASSERT_EQUALS(request[i], 0);                     // reserved
-		TS_ASSERT_EQUALS(request[13], 1);                        // Red Book addressing
-		TS_ASSERT_EQUALS(dosCdGet32(request + 14), 0x00000600u); // 450 frames = 00:06:00
+		TS_ASSERT_EQUALS(request[13], 0);                        // HSG addressing, which every driver takes
+		TS_ASSERT_EQUALS(dosCdGet32(request + 14), 300u);        // 00:06:00 is HSG sector 300
 		TS_ASSERT_EQUALS(dosCdGet32(request + 18), 450u);        // number of frames
 	}
 
-	void test_play_request_start_is_little_endian_frame_second_minute() {
+	void test_play_request_start_is_a_little_endian_hsg_sector() {
 		uint8 request[kDosCdPlayRequestSize];
-		dosCdBuildPlay(request, 4580, 1);                        // 01:01:05
-		TS_ASSERT_EQUALS(request[14], 5);                        // frame
-		TS_ASSERT_EQUALS(request[15], 1);                        // second
-		TS_ASSERT_EQUALS(request[16], 1);                        // minute
+		dosCdBuildPlay(request, 4580, 1);                        // 01:01:05: sector 4430 = 0x114E
+		TS_ASSERT_EQUALS(request[14], 0x4E);
+		TS_ASSERT_EQUALS(request[15], 0x11);
+		TS_ASSERT_EQUALS(request[16], 0);
 		TS_ASSERT_EQUALS(request[17], 0);
+
+		dosCdBuildPlay(request, 75 * 60 * 74, 1);                // 74 minutes in: more than 16 bits
+		TS_ASSERT_EQUALS(dosCdGet32(request + 14), 75u * 60 * 74 - 150);
 	}
 
 	void test_stop_request_layout() {
@@ -227,6 +238,41 @@ public:
 		uint8 request[kDosCdHeaderSize] = {0};
 		dosCdPut16(request + 3, 0x0300);
 		TS_ASSERT_EQUALS(dosCdRequestStatus(request), 0x0300);
+	}
+
+	void test_device_status_answer() {
+		uint8 block[kDosCdDeviceStatusSize];
+		memset(block, 0xEE, sizeof(block));
+		dosCdBuildDeviceStatus(block);
+		TS_ASSERT_EQUALS(kDosCdDeviceStatusSize, 5);
+		TS_ASSERT_EQUALS(block[0], 6);
+		for (int i = 1; i < kDosCdDeviceStatusSize; i++)
+			TS_ASSERT_EQUALS(block[i], 0);
+
+		// A drive that plays audio and sets its volume, with no disc: bits 4, 8 and 11
+		block[1] = 0x10;
+		block[2] = 0x09;
+		uint32 status = 0;
+		TS_ASSERT(dosCdParseDeviceStatus(block, status));
+		TS_ASSERT_EQUALS(status, 0x0910u);
+		TS_ASSERT(status & kDosCdDevicePlaysAudio);
+		TS_ASSERT(status & kDosCdDeviceSetsVolume);
+		TS_ASSERT(status & kDosCdDeviceNoDisc);
+
+		block[0] = 10;
+		TS_ASSERT(!dosCdParseDeviceStatus(block, status));       // the answer to a different question
+	}
+
+	void test_a_disc_has_music_unless_all_its_tracks_are_data() {
+		DosCdToc toc = threeTracks();
+		TS_ASSERT(toc.hasMusic());
+		toc.data[1] = true;                                      // a game CD: data, then music
+		TS_ASSERT(toc.hasMusic());
+		toc.data[2] = toc.data[3] = true;                        // a data CD
+		TS_ASSERT(!toc.hasMusic());
+
+		DosCdToc none;
+		TS_ASSERT(!none.hasMusic());                             // no disc
 	}
 
 	void test_disc_info_answer() {
@@ -424,5 +470,69 @@ public:
 		TS_ASSERT_EQUALS(dosCdDriveLetter("CD"), -1);
 		TS_ASSERT_EQUALS(dosCdDriveLetter("D:foo"), -1);
 		TS_ASSERT_EQUALS(dosCdDriveLetter(nullptr), -1);
+	}
+
+	void test_the_mixer_of_the_card_in_blaster() {
+		unsigned base = 1;
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I5 D1 H5 P330 T6", base), kDosCdMixerSb16);
+		TS_ASSERT_EQUALS(base, 0x220u);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A240 I7 D3 T4", base), kDosCdMixerSbPro);
+		TS_ASSERT_EQUALS(base, 0x240u);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1 T2", base), kDosCdMixerSbPro);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1 T5", base), kDosCdMixerSbPro);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1 H5", base), kDosCdMixerSb16);     // a 16-bit channel and no type
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("  a2a0  i5 d1  t6 ", base), kDosCdMixerSb16); // any case, spaces
+		TS_ASSERT_EQUALS(base, 0x2A0u);
+	}
+
+	void test_cards_without_a_known_mixer() {
+		unsigned base = 1;
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1 T3", base), kDosCdNoMixer);       // SB 2.0
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1 T1", base), kDosCdNoMixer);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 I7 D1", base), kDosCdNoMixer);          // no type
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("I5 D1 H5 T6", base), kDosCdNoMixer);         // no port
+		TS_ASSERT_EQUALS(base, 0u);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("A220 H T4", base), kDosCdMixerSbPro);         // an H with no channel
+		TS_ASSERT_EQUALS(dosCdBlasterMixer("", base), kDosCdNoMixer);
+		TS_ASSERT_EQUALS(dosCdBlasterMixer(nullptr, base), kDosCdNoMixer);
+	}
+
+	void test_a_silent_sb16_cd_input_is_raised_to_the_voice_level() {
+		uint8 level = 0;
+		TS_ASSERT(dosCdSb16CdLevel(0, 0, 0xF8, level));
+		TS_ASSERT_EQUALS(level, 0xF8);
+		TS_ASSERT(dosCdSb16CdLevel(0x07, 0x05, 0xA5, level));   // bits 2-0 are not part of the level
+		TS_ASSERT_EQUALS(level, 0xA0);
+		TS_ASSERT(dosCdSb16CdLevel(0, 0, 0x07, level));          // the voice silent too: 24 of 31
+		TS_ASSERT_EQUALS(level, 24 << 3);
+	}
+
+	void test_an_sb16_cd_input_the_user_set_is_left_alone() {
+		uint8 level = 0x55;
+		TS_ASSERT(!dosCdSb16CdLevel(0x08, 0, 0xF8, level));      // the left side at 1 of 31
+		TS_ASSERT(!dosCdSb16CdLevel(0, 0x10, 0xF8, level));
+		TS_ASSERT(!dosCdSb16CdLevel(0xC0, 0xC0, 0xF8, level));
+		TS_ASSERT_EQUALS(level, 0x55);
+	}
+
+	void test_sb16_output_switches() {
+		TS_ASSERT_EQUALS(dosCdSb16Switches(0x00), 0x06);         // nothing on: the CD's two sides on
+		TS_ASSERT_EQUALS(dosCdSb16Switches(0x19), 0x1F);         // line and microphone kept
+		TS_ASSERT_EQUALS(dosCdSb16Switches(0x04), 0x04);         // one side on: as the user set it
+		TS_ASSERT_EQUALS(dosCdSb16Switches(0x02), 0x02);
+		TS_ASSERT_EQUALS(dosCdSb16Switches(0x1F), 0x1F);
+	}
+
+	void test_a_silent_sb_pro_cd_input_is_raised_to_the_voice_level() {
+		uint8 level = 0;
+		TS_ASSERT(dosCdSbProCdLevel(0x00, 0x99, level));
+		TS_ASSERT_EQUALS(level, 0x99);
+		TS_ASSERT(dosCdSbProCdLevel(0x11, 0x99, level));         // bits 4 and 0 are not part of the levels
+		TS_ASSERT(dosCdSbProCdLevel(0x00, 0x11, level));         // the voice silent too
+		TS_ASSERT_EQUALS(level, 0xCC);
+
+		TS_ASSERT(!dosCdSbProCdLevel(0x31, 0x99, level));        // the left side at 1 of 7
+		TS_ASSERT(!dosCdSbProCdLevel(0x13, 0x99, level));        // the right side at 1 of 7
+		TS_ASSERT(!dosCdSbProCdLevel(0xFF, 0x99, level));
 	}
 };

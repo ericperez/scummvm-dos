@@ -11,7 +11,7 @@ The suites are in `test/backends/dos/` (`test/module.mk` takes every `*.h` there
 | Suite | Tests | Of |
 |---|---|---|
 | `DosKeymapTestSuite` | keyboard layouts: BIOS character + scan code to a key, in the DOS code page | `dos-keymap.h`, `dos-bioskey.h`, `dos-codepages.h` |
-| `DosCdTestSuite` | CD audio: Red Book addresses, tracks, MSCDEX requests and answers, volume, repeats | `dos-cd.h` |
+| `DosCdTestSuite` | CD audio: Red Book addresses, HSG sectors, tracks, MSCDEX requests and answers, volume, repeats, the sound card's CD input (BLASTER, SB16 and SB Pro mixers) | `dos-cd.h` |
 | `DosDitherTestSuite` | 256-colour dithering: palette, tables, the line converter against the plain one | `dos-dither.h` |
 | `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists) | `dos-modes.h` |
 | `DosNamesTestSuite` | 8.3 names, CONFIG.SYS country to language | `dos-names.h` |
@@ -53,8 +53,8 @@ Each test works in `build-dos-tests/run-<name>`, in a clean copy of the distribu
 |---|---|---|
 | `nodpmi` | without dist's `CWSDPMI.EXE` the program stops at start-up with DJGPP's "no DPMI" message: the test machine has no other DPMI host (every test leaves DOSBox-X's own `Z:\BIN\CWSDPMI.EXE` off the `PATH`), so the other tests ran on the one `make-dist.sh` shipped | none |
 | `kbd` | with `KEYB GR` loaded, keys give the German layout's characters | `SCUMMVM_DOS_KBDTEST` |
-| `cd` | MSCDEX: a CD image of three audio tracks is found, read, played, timed, stopped | `SCUMMVM_DOS_CDTEST=drive` |
-| `nocd` | no CD drive: one WARNING, and the track file plays instead | `SCUMMVM_DOS_CDTEST=nodrive` |
+| `cd` | MSCDEX: a CD image of three audio tracks is found, read, played (at the right place), timed, stopped; the rip-the-tracks warning only logs with it in; a silent SB16 CD input is raised and put back | `SCUMMVM_DOS_CDTEST=drive` |
+| `nocd` | no CD drive: one WARNING, no audio CD reported, and the track file plays instead | `SCUMMVM_DOS_CDTEST=nodrive` |
 | `net` | a browser on the host gets the launcher's web server through an emulated NE2000 card | `SCUMMVM_DOS_CLICKS` |
 | `pageflip`, `pageflipbanked`, `pageflip16` | page flipping: the launcher draws to a hidden display page; on every frame, with the cursor moving, video memory matches the picture (640x480 in 256 colours, linear or banked; 800x600 in high colour) | `SCUMMVM_DOS_VERIFY` |
 | `plugins` | the plug-in build (`build-dos-stable`, or `PLUGIN_BUILD`) finds its PLUGINS folder, the detection plug-in and an engine plug-in for each engine, and loads the detection plug-in for the launcher | `SCUMMVM_DOS_PLUGLOG` |
