@@ -34,7 +34,7 @@ const RunawayHotspot kHotspots[] = {
 	{301, 478, 7, {306, 307}, {0, 1}, {243, 446}}, // 4: Door.
 	{301, 478, 7, {308, 309}, {0, 1}, {243, 446}}, // 5: Explosives.
 	{620, 357, 7, {310, 311}, {0, 0}, {557, 320}}, // 6: Water Tank.
-	{987, 378, 1, {312, 313}, {0, 1}, {1027, 350}}, // 7: Train Car.
+	{987, 378, 1, {312, 313}, {0, 1}, {1027, 350}, 5, true}, // 7: Train Car.
 	{987, 378, 1, {312, 313}, {1, 1}, {1027, 350}, 5}, // 8: Train Car Interior.
 	{67, 512, 0, {316, 317}, {0, 0}, {66, 389}}, // 9: Ant-Hill.
 	{255, 546, 7, {318, 319}, {1, 0}, {212, 495}}, // 10: Sign.
@@ -109,7 +109,8 @@ bool Scene5080::loadCustomResources() {
 }
 
 bool Scene5080::applyCustomBackgroundPatches() {
-	return loadRunawayMask(_archive, _background.w, _background.h, _mask, _originalMaps, _desert.antsDistracted ? 4 : 1) &&
+	return loadRunawayWalkMap(_archive, _background.w, _background.h, _mask, _originalMaps,
+		_walkRoutes, _desert.antsDistracted ? 4 : 1, 3) &&
 		(!_desert.antsDistracted || applyPatch(_desert.dynamite == 1 ? 7 : 8));
 }
 
@@ -124,6 +125,14 @@ void Scene5080::applyCustomHotspotState() {
 			}
 		}
 	}
+}
+
+bool Scene5080::adjustCustomWalkTargetToFloorMask(Common::Point &target) const {
+	target.x = MIN<int>(target.x, 1133);
+	if (target.x > 683 && target.x < 766 && target.y > 374) {
+		target.x = target.x - 683 <= 766 - target.x ? 683 : 766;
+	}
+	return false;
 }
 
 float Scene5080::actorHeight() const {
@@ -209,7 +218,7 @@ RunawayRoomScene::ActionResult Scene5080::dispatchCustomSceneAction(uint16 actio
 			say(17, 0, true);
 		} else {
 			say(21);
-			walkTo(Common::Point(564, 497), 7, true);
+			walkTo(Common::Point(564, 497), 7);
 			byte brian[49] = {}, butter[49] = {};
 			for (uint i = 1; i < 39; ++i) {
 				brian[i] = i - 1;
@@ -246,7 +255,7 @@ RunawayRoomScene::ActionResult Scene5080::dispatchCustomSceneAction(uint16 actio
 		}
 		break;
 	case 446: // Step back from the ants.
-		walkTo(Common::Point(906, 450), 5, true);
+		walkTo(Common::Point(906, 450), 5);
 		deferDesertAction(456);
 		break;
 	case 456: // Watch the ants consume the shed.

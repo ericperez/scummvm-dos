@@ -64,6 +64,10 @@ namespace Runaway {
 Scene5070::Scene5070(RunawayAudio &audio, RunawayInventory &inventory, const RunawayStrings &strings, RunawayGameType game) :
 	RunawayRoomScene(audio, inventory, strings, game) {}
 
+bool Scene5070::loadBackground() {
+	return loadRunawaySurface(_archive, _desert.dynamitePlaced ? 12 : 0, 1372, 600, _background);
+}
+
 bool Scene5070::loadCustomResources() {
 	return _ambientAnimations[0].load(_archive, 5, 896) &&
 		_ambientAnimations[1].load(_archive, 6, 945) &&
@@ -121,11 +125,11 @@ RunawayRoomScene::ActionResult Scene5070::dispatchCustomSceneAction(uint16 actio
 		items.bombReady = 1;
 		_inventory.remove(5);
 		say(7, 1);
-		if (items.gunReady && items.helicopterReady) {
-			say(174, 4, true);
-			leaveDesertRoom(5062);
-		}
+		deferDesertAction(411);
 		return kBackgroundChanged;
+	case 411:
+		reviewDesertPlan(1);
+		break;
 	case 312: // Use the bucket with the oil well.
 		if (items.bucket != 1) {
 			say(17, 0, true);

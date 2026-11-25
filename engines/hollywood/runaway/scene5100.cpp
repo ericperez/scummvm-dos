@@ -56,7 +56,7 @@ const RunawayHotspot kHotspots[] = {
 	{1279, 267, 0, {301, 302}, {0, 1}, {1449, 255}, 4}, // 1: Path.
 	{1259, 354, 7, {303, 304}, {1, 0}, {1101, 298}}, // 2: Barn Doors.
 	{0, 0, 0, {305, 306}, {1, 1}, {274, 484}}, // 3: Bottle.
-	{1279, 267, 4, {1, 302}, {0, 1}, {0, 0}}, // 4: Window.
+	{1279, 267, 4, {1, 302}, {0, 1}, {0, 0}, 4, true}, // 4: Window.
 	{164, 581, 0, {307, 308}, {1, 0}, {164, 570}}, // 5: Motorcycle.
 	{0, 0, 7, {309, 310}, {1, 1}, {490, 493}, 3, true}, // 6: Stud.
 	{0, 0, 4, {311, 312}, {0, 0}, {1329, 514}}, // 7: Remains Of Rocking Chair.
@@ -66,8 +66,8 @@ const RunawayHotspot kHotspots[] = {
 	{0, 0, 7, {319, 320}, {0, 0}, {1101, 298}}, // 11: Helicopter.
 	{253, 418, 4, {321, 322}, {0, 0}, {245, 491}}, // 12: Can.
 	{0, 0, 1, {323, 324}, {1, 0}, {786, 403}}, // 13: Bucket.
-	{253, 418, 4, {1, 325}, {0, 0}, {253, 600}}, // 14: Outside.
-	{1053, 403, 3, {1, 329}, {0, 1}, {490, 493}}, // 15: Stud.
+	{253, 418, 4, {1, 325}, {0, 0}, {253, 600}, 0, false, true}, // 14: Outside.
+	{1053, 403, 3, {329, 329}, {1, 1}, {490, 493}, 0, false, true}, // 15: Stud (peek around the corner).
 	{0, 0, 0, {0, 0}, {0, 0}, {0, 0}}, // 16: Beer Can.
 	{0, 0, 0, {0, 0}, {0, 0}, {0, 0}}, // 17: Peanut Butter.
 	{0, 0, 0, {0, 0}, {0, 0}, {0, 0}}, // 18: Foot Rest.
@@ -112,6 +112,10 @@ Scene5100::Scene5100(RunawayAudio &audio, RunawayInventory &inventory, const Run
 	_speechColors[2] = 28; // Lula.
 }
 
+byte Scene5100::actionCursor(byte id) const {
+	return id == 2 ? (_desert.barnDoor == 1 ? 4 : 0) : RunawayRoomScene::actionCursor(id);
+}
+
 void Scene5100::setCameraX(int x) {
 	// Keep the guard out of view until Brian enters or watches the spiked beer.
 	if (!_desert.insideBarn && _desert.guard != 2 && _roomAction != 468 && _roomAction != 478) {
@@ -142,6 +146,33 @@ bool Scene5100::loadCustomResources() {
 		_lulaAnimation.load(_archive, 16, 79);
 }
 
+bool Scene5100::adjustCustomWalkTargetToFloorMask(Common::Point &target) const {
+	if (_desert.insideBarn) {
+		target = Common::Point(253, 418);
+		return true;
+	}
+	target.x = CLIP<int>(target.x, _desert.guard == 2 ? 141 : 1053, 1471);
+	return false;
+}
+
+byte Scene5100::actorWalkZone() const {
+	// The one-pixel-wide corridors can fall between Brian's rounded positions.
+	for (int distance = 0; distance < _background.h; ++distance) {
+		const int above = _position.y - distance, below = _position.y + distance;
+		if (above >= 0 && above < _background.h) {
+			const byte zone = _originalMaps[_mask[above * _background.w + _position.x]];
+			if (zone)
+				return zone;
+		}
+		if (below >= 0 && below < _background.h) {
+			const byte zone = _originalMaps[_mask[below * _background.w + _position.x]];
+			if (zone)
+				return zone;
+		}
+	}
+	return 0;
+}
+
 float Scene5100::actorHeight() const {
 	return _position.y * 0.668016195f + 87.591095f;
 }
@@ -152,7 +183,7 @@ int Scene5100::sceneViewportYOffset() const {
 }
 
 void Scene5100::setupActorDepth(RunawayActor::RenderParams &params) const {
-	const bool behindHangar = _desert.guard != 2 && (walkZone() == 3 || _position == Common::Point(253, 418));
+	const bool behindHangar = _desert.guard != 2 && actorWalkZone() == 3;
 	params.depthY[1] = behindHangar ? 599 : 0;
 	params.depthY[2] = behindHangar ? 599 : 303;
 	params.depthY[3] = behindHangar ? 599 : 446;
@@ -161,6 +192,8 @@ void Scene5100::setupActorDepth(RunawayActor::RenderParams &params) const {
 
 RunawayRoomScene::ActionResult Scene5100::dispatchCustomSceneAction(uint16 action) {
 	switch (action) {
+	case 1: // The window and exit have no look response.
+		break;
 	case 302: // Go to the desert overview.
 		leaveDesertRoom(5010);
 		break;
@@ -422,10 +455,7 @@ RunawayRoomScene::ActionResult Scene5100::dispatchCustomSceneAction(uint16 actio
 		_audio.playEffect(49);
 		_desert.barnDoor = 2;
 		_inventory.desert().helicopterReady = 1;
-		if (_inventory.desert().gunReady && _inventory.desert().bombReady) {
-			say(174, 4, true);
-			leaveDesertRoom(5062);
-		}
+		reviewDesertPlan(3);
 		return kBackgroundChanged;
 	case 340: // Abandon the distraction and return to cover outside.
 		say(13);
@@ -606,7 +636,7 @@ Common::U32String Scene5100::hotspotName(byte id) const {
 
 bool Scene5100::applyCustomBackgroundPatches() {
 	const uint mask = _desert.insideBarn ? 23 : _desert.guard == 2 ? 26 : 1;
-	return loadRunawayMask(_archive, _background.w, _background.h, _mask, _originalMaps, mask) &&
+	return loadRunawayWalkMap(_archive, _background.w, _background.h, _mask, _originalMaps, _walkRoutes, mask, mask + 2) &&
 		(_desert.barnDoor != 2 || applyPatch(5)) && (_desert.peanutButter != 2 || applyPatch(6));
 }
 
@@ -633,7 +663,7 @@ void Scene5100::applyCustomHotspotState() {
 			_maps[i] = 0;
 		}
 		byte &id = _maps[256 + i];
-		if ((id == 4 && _desert.guard == 2) || (id == 8 && _desert.footrest != 1)) {
+		if (((id == 4 || id == 12) && _desert.guard == 2) || (id == 8 && _desert.footrest != 1)) {
 			id = 0;
 		}
 		if (id == 3 && _desert.peanutButter == 2) {
@@ -650,7 +680,7 @@ void Scene5100::applyCustomHotspotState() {
 
 void Scene5100::walkHangar(Common::Point target, byte facing) {
 	// Scripted entrances cross the floor that is blocked while the guard watches.
-	_walkPath.findPath(RunawayWalkMap(_background.w, _background.h, _mask, _originalMaps), target);
+	_walkPath.findPath(RunawayWalkMap(_background.w, _background.h, _mask, _originalMaps, &_walkRoutes), target);
 	_arrivalFacing = facing;
 	_walkElapsed = _lastFootstep = 0;
 	if (!_walkPath.active()) {
@@ -777,9 +807,9 @@ void Scene5100::drawRoomComposite(Graphics::ManagedSurface &viewport) {
 			_studAnimation.draw(viewport, pose, _camera.x, -_camera.y);
 		}
 	}
-	if (_desert.guard || _hangarIntroduction || (frame >= 82 && frame <= 92)) {
+	if (_desert.guard != 2 && (_desert.guard || _hangarIntroduction || (frame >= 82 && frame <= 92))) {
 		_beerAnimation.draw(viewport, 0, _camera.x, -_camera.y);
-	} else if (studSpeaking) {
+	} else if (!_desert.guard && studSpeaking) {
 		// The talking frames contain the can even after Stud has thrown it.
 		const Common::Rect beer(225, 284, 269, 337);
 		viewport.blitFrom(_background, beer, Common::Point(beer.left - _camera.x, beer.top - _camera.y));
@@ -828,7 +858,8 @@ void Scene5100::advanceCustomGameplayLoop(uint32 delta) {
 	}
 	updateStud(delta);
 	const uint frame = studFrame();
-	byte canHotspot = 12;
+	// Stud discards the spiked can before the pill takes effect.
+	byte canHotspot = _desert.guard == 2 ? 0 : 12;
 	if (!_desert.guard && (frame < 82 || frame > 92)) {
 		canHotspot = 14;
 	}
@@ -871,13 +902,13 @@ const RunawayHotspot *Scene5100::hotspot(byte id) const {
 }
 
 void Scene5100::drawCustomBackgroundComposite(Graphics::ManagedSurface &viewport) {
-	if (!drawingRoomAnimation() && walkZone() != 7) {
+	if (!drawingRoomAnimation() && actorWalkZone() != 7) {
 		drawRoomComposite(viewport);
 	}
 }
 
 void Scene5100::drawCustomForegroundComposite(Graphics::ManagedSurface &viewport) {
-	if (!drawingRoomAnimation() && walkZone() == 7) {
+	if (!drawingRoomAnimation() && actorWalkZone() == 7) {
 		drawRoomComposite(viewport);
 	}
 	if (_desert.guard == 1 && !_hangarIntroduction && _hangarThrowing) {

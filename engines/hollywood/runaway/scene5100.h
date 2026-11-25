@@ -31,12 +31,15 @@ class Scene5100 : public RunawayRoomScene {
 public:
 	Scene5100(RunawayAudio &audio, RunawayInventory &inventory, const RunawayStrings &strings, RunawayGameType game);
 	void setCameraX(int x) override;
+	byte actionCursor(byte id) const override;
 	const Common::U32String &subtitle() const override;
 	byte subtitleColor() const override;
 
 private:
 	const char *actionCaptionVariant(byte id, bool look, byte item) const override;
 	bool loadCustomResources() override;
+	bool adjustCustomWalkTargetToFloorMask(Common::Point &target) const override;
+	byte actorWalkZone() const;
 	float actorHeight() const override;
 	int sceneViewportYOffset() const override;
 	void setupActorDepth(RunawayActor::RenderParams &params) const override;

@@ -29,7 +29,7 @@ namespace {
 const RunawayHotspot kHotspots[] = {
 	{0, 0, 0, {0, 0}, {0, 0}, {0, 0}},
 	{1123, 416, 3, {302, 301}, {0, 3}, {1123, 416}, 6}, // 1: Path.
-	{456, 405, 7, {0, 1}, {0, 0}, {0, 0}},
+	{456, 405, 7, {0, 303}, {0, 1}, {0, 0}, 0, false, true}, // 2: Walk towards the cabin (native verb 0).
 	{573, 400, 7, {304, 305}, {0, 0}, {533, 379}}, // 3: Rocking Chair.
 	{644, 397, 1, {310, 311}, {0, 0}, {677, 372}}, // 4: Tires.
 	{456, 405, 7, {306, 307}, {0, 0}, {428, 336}}, // 5: Door.
@@ -39,7 +39,7 @@ const RunawayHotspot kHotspots[] = {
 
 const RunawayResponse kResponses[] = {
 	{5020, 302, 2, 0}, // Look at the path.
-	{5020, 303, 1, 0}, // Use an item with the cabin.
+	{5020, 303, 1, 0}, // Refuse to walk in front of the cabin.
 	{5020, 304, 3, 0}, // Look at the rocking chair.
 	{5020, 305, 4, 0}, // Use the rocking chair.
 	{5020, 306, 5, 0}, // Look at the door.
@@ -119,6 +119,11 @@ float Scene5020::actorHeight() const {
 	return _position.y * -0.140845075f + 264.225342f;
 }
 
+void Scene5020::setupActorDepth(RunawayActor::RenderParams &params) const {
+	// The foreground rock and vegetation always cover Brian (native 0x473a60).
+	params.depthY[1] = 599;
+}
+
 RunawayRoomScene::ActionResult Scene5020::dispatchCustomSceneAction(uint16 action) {
 	switch (action) {
 	case 301: // Go to the desert overview.
@@ -143,6 +148,18 @@ RunawayRoomScene::ActionResult Scene5020::dispatchCustomSceneAction(uint16 actio
 	case 410: // Rescue Gina and escape in the helicopter.
 		startRescueFilm();
 		break;
+	case 1450: // Finish climbing out of the cabin.
+		_position = Common::Point(618, 386);
+		_walkPath.reset(_position);
+		_facing = 3;
+		if (!_desert.escapedCabin) {
+			_desert.escapedCabin = 1;
+			say(0);
+			leaveDesertRoom(5140);
+		} else {
+			visitDesertRoom(1, 0);
+		}
+		break;
 	default:
 		return kUnhandled;
 	}
@@ -151,12 +168,9 @@ RunawayRoomScene::ActionResult Scene5020::dispatchCustomSceneAction(uint16 actio
 
 void Scene5020::runCustomEntrySequence() {
 	if (_entryScene == 5021) {
+		const byte frames[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};
 		_audio.playMusic(12, false);
-	}
-	if (_entryScene == 5021 && !_desert.escapedCabin) {
-		_desert.escapedCabin = 1;
-		say(0);
-		leaveDesertRoom(5140);
+		beginRoomAnimation(450, 10, 25, frames, ARRAYSIZE(frames), true, 60);
 		return;
 	}
 	if (_entryScene == 5022) {

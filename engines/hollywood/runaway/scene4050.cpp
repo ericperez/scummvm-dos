@@ -120,7 +120,8 @@ const RunawayRoom kRunawayScene4050 = {
 namespace Runaway {
 
 Scene4050::Scene4050(RunawayAudio &audio, RunawayInventory &inventory, const RunawayStrings &strings, RunawayGameType game) :
-	RunawayRoomScene(audio, inventory, strings, game), _susanSpeech(audio, _random, RunawaySpeech::kRecordedLipSync) {
+	RunawayRoomScene(audio, inventory, strings, game),
+	_susanSpeech(audio, _random, game == kRunawayMuseumDemo ? RunawaySpeech::kRandomLipSync : RunawaySpeech::kRecordedLipSync) {
 	_speechColors[1] = 17; // Susan.
 }
 
@@ -129,6 +130,14 @@ const char *Scene4050::actionCaptionVariant(byte id, bool look, byte item) const
 		return _inventory.museum().coffee < 2 ? "coffee" : "empty";
 	}
 	return nullptr;
+}
+
+Common::U32String Scene4050::actionCaption(byte id, RunawayVerb verb, byte item) const {
+	if (_game == kRunawayMuseumDemo && id == 11 && item) {
+		// Both sets of shelves use "place in" in the demo.
+		return RunawayStrings::formatActionCaption(_strings.sceneActionCaption(_room, 2, item, false), _inventory.name(item), hotspotName(id));
+	}
+	return RunawayRoomScene::actionCaption(id, verb, item);
 }
 
 bool Scene4050::loadCustomResources() {
@@ -356,6 +365,7 @@ void Scene4050::drawCustomForegroundComposite(Graphics::ManagedSurface &viewport
 }
 
 RunawayRoomScene::ActionResult Scene4050::dispatchCustomSceneAction(uint16 action) {
+	const bool restoredResponses = _game == kRunawayFullGame && _restoredContent;
 	if (museumChapter()) {
 		switch (action) {
 		case 302: // Look at the restoration shelves.
@@ -366,7 +376,8 @@ RunawayRoomScene::ActionResult Scene4050::dispatchCustomSceneAction(uint16 actio
 			say(3, _museum.restoration == 1);
 			return kHandled;
 		case 304: // Look at Susan.
-			say(4, _museum.susan == 3 ? 2 : _museum.susan == 1 ? 1 : _museum.restoration && _museum.leftLabOnce ? 3 : 0);
+			say(4, _museum.susan == 3 ? 2 : _museum.susan == 1 ? 1 :
+				_game != kRunawayMuseumDemo && _museum.restoration && _museum.leftLabOnce ? 3 : 0);
 			return kHandled;
 		case 305: // Talk to Susan.
 			if (_museum.susan == 3) {
@@ -379,15 +390,17 @@ RunawayRoomScene::ActionResult Scene4050::dispatchCustomSceneAction(uint16 actio
 			}
 			return kHandled;
 		case 312: // Look in the wastepaper basket.
-			say(19, 1, true);
+			executeItemAction(restoredResponses ? 14 : 23);
 			return kHandled;
 		case 313: // Use the wastepaper basket.
 			say(4, 0, true);
 			return kHandled;
-		case 315: // Use the tank.
-			say(7, 0, true);
+		case 315: // Try to take the tank.
+			executeItemAction(restoredResponses ? 18 : 8);
 			return kHandled;
 		case 317: // Use the machine.
+			executeItemAction(restoredResponses ? 7 : 15);
+			return kHandled;
 		case 335: // Use an item with the laser.
 			say(14, _random.getRandomNumber(2), true);
 			return kHandled;
@@ -450,7 +463,7 @@ RunawayRoomScene::ActionResult Scene4050::dispatchCustomSceneAction(uint16 actio
 			return kHandled;
 		case 332: // Use an item with the electric lathe.
 			// Only solid objects get this reply in the full game; the demo uses it for every item.
-			if (_pendingItem == 7 || _pendingItem == 8 || _pendingItem == 11 || _pendingItem == 12 || _pendingItem == 17) {
+			if (_game == kRunawayMuseumDemo || _pendingItem == 7 || _pendingItem == 8 || _pendingItem == 11 || _pendingItem == 12 || _pendingItem == 17) {
 				say(27);
 			} else {
 				say(14, _random.getRandomNumber(2), true);
@@ -480,7 +493,11 @@ RunawayRoomScene::ActionResult Scene4050::dispatchCustomSceneAction(uint16 actio
 			return kHandled;
 		case 339: // Leave the laboratory.
 			// Alternate actor bank for the northwest-facing door handle gesture.
-			beginActorAnimation(339, 70, 11, 6);
+			if (_game == kRunawayMuseumDemo) {
+				deferMuseumAction(339);
+			} else {
+				beginActorAnimation(339, 70, 11, 6);
+			}
 			return kHandled;
 		default:
 			break;

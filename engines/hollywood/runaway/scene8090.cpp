@@ -48,7 +48,8 @@ const RunawayResponse kResponses[] = {
 };
 
 const RunawayItemAction kItemActions[] = {
-	{8090, 12, 4, 325} // Offer Oscar the sheriff's badge.
+	{8090, 12, 4, 325}, // Offer Oscar the sheriff's badge.
+	{8090, 22, 4, 314}  // Offer raw tobacco leaves (native item 27).
 };
 
 } // End of anonymous namespace
@@ -115,6 +116,7 @@ void Scene8090::runCustomEntrySequence() {
 		_arrivalStarted = _now;
 		break;
 	case 8093: // Oscar returns armed, ready to confront the gangsters.
+		_inventory.remove(11);
 		_position = Common::Point(676, 510);
 		_walkPath.reset(_position);
 		_facing = 7;
@@ -316,6 +318,18 @@ RunawayRoomScene::ActionResult Scene8090::dispatchCustomSceneAction(uint16 actio
 	case 313: // Go inside to speak with Mama Dorita.
 		enterHouse(false);
 		break;
+	case 314: // Oscar chews tobacco; he does not smoke the untreated leaves.
+		if (!_restoredContent) {
+			executeItemAction(1);
+			break;
+		}
+		_oscar.setTalking(true);
+		_audio.stopEffect(1);
+		say(12);
+		say(12, 1, false, 1);
+		_town.rawTobaccoRefused = 1;
+		deferAction(400);
+		break;
 	case 320: // Visit Gina.
 		enterHouse(true);
 		break;
@@ -398,15 +412,18 @@ RunawayRoomScene::ActionResult Scene8090::dispatchCustomSceneAction(uint16 actio
 		_animatesOscar = false;
 		setOscarPose(13, 100, 0);
 		_oscarMouth = 94;
-		for (uint i = 12; i <= 19; ++i) {
+		for (uint i = 12; i <= 18; ++i) {
 			say(20, i, false, i <= 16 && !(i % 2));
+		}
+		if (!_inventory.contains(11)) {
+			say(20, 19);
 		}
 		deferAction(423);
 		break;
-	case 423: // Return to Sushi to continue the plan.
+	case 423: // Arm Oscar with the borrowed rifle, or fetch it from Sushi.
 		_oscarPose = 0;
 		_oscar.startIdle();
-		leaveRoom(8373);
+		leaveRoom(_inventory.contains(11) ? 8093 : 8373);
 		break;
 	case 1430: // Oscar shows Brian his rifle.
 		_animatesOscar = false;
@@ -477,7 +494,7 @@ void Scene8090::enterHouse(bool visitGina) {
 		if (_finale.mediumTests < 3) {
 			_houseDestination = 8420;
 		} else if (!_finale.recordingPlan) {
-			_houseDestination = 0;
+			_houseDestination = _restoredContent ? 8420 : 0;
 		} else if (_finale.recordings == 0 || _finale.recordings == 2) {
 			_houseDestination = 8422;
 		} else {

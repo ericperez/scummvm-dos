@@ -99,6 +99,11 @@ void Scene5110::applyCustomHotspotState() {
 	}
 }
 
+bool Scene5110::adjustCustomWalkTargetToFloorMask(Common::Point &target) const {
+	target.x = CLIP<int>(target.x, 293, 801);
+	return false;
+}
+
 float Scene5110::actorHeight() const {
 	return _position.y * 1.142857194f - 170.571426f;
 }
