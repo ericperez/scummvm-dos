@@ -42,6 +42,7 @@
 #include "backends/platform/dos/dos-files.h"
 #include "backends/platform/dos/dos-modes.h"
 #include "backends/platform/dos/dos-net.h"
+#include "backends/platform/dos/dos-openmpt.h"
 #include "backends/platform/dos/dos-sdl.h"
 #include "backends/platform/dos/dos-vesa.h"
 #include "backends/platform/sdl/sdl-sys.h"
@@ -436,6 +437,11 @@ void OSystem_SDL_DOS::logMessage(LogMessageType::Type type, const char *message)
 	// Info messages (such as the game starting) as a banner, but not over the launcher
 	if (type == LogMessageType::kInfo && !(GUI::GuiManager::hasInstance() && g_gui.isActive()))
 		dosBannerShow(message);
+}
+
+void OSystem_SDL_DOS::engineInit() {
+	OSystem_SDL::engineInit();
+	dosOpenMPTEngineInit(ConfMan.get("engineid").c_str());
 }
 
 void OSystem_SDL_DOS::quit() {

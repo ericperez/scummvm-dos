@@ -63,17 +63,22 @@ Each test works in `build-dos-tests/run-<name>`, in a clean copy of the distribu
 | `plugadd` | `--add --path=... --recursive` with no game data: a folder holding only an empty file `TESTBED` is found through the detection plug-in, added as `testbed`, and the plug-in is unloaded again (the `testbed` build, `TESTBED_BUILD`) | `SCUMMVM_DOS_PLUGLOG` |
 | `plugsmoke` | with no game data: the Testbed engine runs through its plug-in, draws, and is left from inside it with the plug-in unloaded | `SCUMMVM_DOS_QUITAT` |
 | `smoke` | the launcher comes up and draws | `SCUMMVM_DOS_SHOTS` |
+| `mpt` | libopenmpt on four module formats: a MOD, an S3M, an XM and an IT file (`gen-test-mod.py`) each open through ScummVM's tracker stream (`audio/mods/universaltracker.cpp`) and give sound, as a Testbed game starts (`build-dos-testbed`, or `TESTBED_BUILD`) | `SCUMMVM_DOS_MPTTEST=file;file...` |
+| `mptdxe` | tracker music in the plug-in build (`build-dos-testbed`, or `TESTBED_BUILD`) is `OPENMPT.DXE`, next to the program and not taken for a plug-in: the launcher alone does not load it; a Testbed game does, a MOD file (`gen-test-mod.py`) plays through it with sound, and it is unloaded after the engine's plug-in; the program ends with status 0 | `SCUMMVM_DOS_PLUGLOG`, `SCUMMVM_DOS_MPTTEST=file` |
+| `mptdxesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 | `sdl` | the SDL3 build (`--backend=sdl`, `build-dos-sdl-testbed`, or `SDL_BUILD`): SDL's VESA video and Sound Blaster audio drivers start, the launcher draws, the program is left cleanly | `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_QUITAT` |
 
 `SCUMMVM_DOS_TESTEXIT=1` makes the program leave as soon as the self-tests have run.
 
 Test data is made by `gen-test-cd.py` (a cue/bin CD image of three
-audio tracks of 300, 450 and 225 frames, and a WAV of track 2); nothing is downloaded.
+audio tracks of 300, 450 and 225 frames, and a WAV of track 2) and `gen-test-mod.py` (a small module in the format
+its file's extension names: MOD, S3M, XM or IT); nothing is downloaded.
 
 ## Support
 
 * `check-openmpt-lib.sh`: libopenmpt is cross-built where `configure` looks for it
-* `rebuild-builds.sh`, `check-builds.sh`: rebuild the DOS builds; check they are current
+* `rebuild-builds.sh`, `check-builds.sh`: rebuild the DOS builds; check they are current (`BUILDS="stable stable-sdl ..."`: the program newer than the sources it is made of, `dist/` holding it as `make-dist.sh` strips it, its backend's self-test hooks, and libopenmpt, or `OPENMPT.DXE`, wherever an engine whose `configure.engine` needs `universaltracker` is built)
+* `check-openmpt-dxe.sh [build ...]`: the engines OPENMPT.DXE is loaded for are those whose `configure.engine` needs `universaltracker`; in each plug-in build given, the program has no libopenmpt code, `openmpt.dxe` exports only its entry point and `dist/` has it next to the program
 * `run-dxe-experiment.sh` (with `dos-programs/dxetest/`): a C++ module linked by the plug-in build's own script (`dxe-link.sh`) and loaded with DJGPP's `dlopen` does what an engine plug-in does: virtual calls, global constructors and destructors, `std::string`, exceptions in both directions, `dlclose`. `measure-dxe-engines.sh`: packages the engines of a finished static build as DXE modules and reports their sizes and what they need from the program (the measurement that came before the plug-in build)
 * `check-plugin-config.sh`, `check-plugin-build.sh`, `check-plugin-ram.sh`: the plug-in build is configured (and a static one left alone), built (plug-ins with 8.3 names, the program free of engines, the export table complete), and needs less RAM to reach the launcher: see `../PLUGINS.md`. `check-no-regression.sh`: `make test` and the DOS tests of the static build still pass
 * `check-docs.sh`: the notes (`FEATURES.md`, this file, the libraries' README) describe what the port does now

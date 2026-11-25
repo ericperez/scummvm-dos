@@ -30,6 +30,7 @@
 #include <dlfcn.h>
 #include <time.h>
 
+#include "backends/platform/dos/dos-openmpt.h"
 #include "backends/plugins/dos/dos-provider.h"
 #include "backends/plugins/dynamic-plugin.h"
 #include "common/config-manager.h"
@@ -141,10 +142,17 @@ public:
 				warning("DOSPLUGIN: unloaded %s in %u ms, %d KB of memory given back", _filename.baseName().c_str(),
 				        millisSince(begin), (int)((int)heapLoaded - (int)heapInUse()) / 1024);
 		}
+
+		// An engine with tracker music leaves with its plug-in
+		dosOpenMPTRelease();
 	}
 };
 
 } // End of anonymous namespace
+
+unsigned dosHeapInUse() {
+	return heapInUse();
+}
 
 Plugin *DOSPluginProvider::createPlugin(const Common::FSNode &node) const {
 	if (pluginLogging())
@@ -154,6 +162,9 @@ Plugin *DOSPluginProvider::createPlugin(const Common::FSNode &node) const {
 
 bool DOSPluginProvider::isPluginFilename(const Common::FSNode &node) const {
 	Common::String name = node.getName();
+	// Tracker music (dos-openmpt.cpp), in the program's folder, which is searched for plug-ins too
+	if (name.equalsIgnoreCase(kDosOpenMPTFile))
+		return false;
 	name.toLowercase();
 	#ifdef PLUGIN_SUFFIX
 	return name.hasSuffix(PLUGIN_SUFFIX);

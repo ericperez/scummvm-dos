@@ -40,6 +40,8 @@ public:
 
 	void quit() override;
 
+	void engineInit() override;
+
 	void addSysArchivesToSearchSet(Common::SearchSet &s, int priority = 0) override;
 	Common::String getSystemLanguage() const override;
 

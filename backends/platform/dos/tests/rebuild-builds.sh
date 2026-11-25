@@ -29,7 +29,7 @@ needs_configure() {
 # Is dist/ made from the program and plug-ins as they are now? (make-dist.sh copies 20 to 130 MB.)
 dist_current() {
   [ -f dist/SCUMMVM.EXE ] || return 1
-  for f in scummvm.exe plugins/*.dxe "$SRC/backends/platform/dos/make-dist.sh"; do
+  for f in scummvm.exe plugins/*.dxe backends/platform/dos/openmpt.dxe "$SRC/backends/platform/dos/make-dist.sh"; do
     [ -f "$f" ] && [ "$f" -nt dist/SCUMMVM.EXE ] && return 1
   done
   return 0

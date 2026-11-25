@@ -28,9 +28,10 @@ MODULE_OBJS := \
 	dos-vesa.o
 endif
 
-# Plug-ins: the export table made by dos.mk, linked ahead of the libraries so what it names is taken from them
+# Plug-ins: the export table made by dos.mk, linked ahead of the libraries so what it names is taken from them;
+# and the program's side of OPENMPT.DXE (libopenmpt as a module of its own, dos.mk)
 ifdef DYNAMIC_MODULES
-MODULE_OBJS += dos-exports.o
+MODULE_OBJS += dos-exports.o dos-openmpt.o
 endif
 
 # The local web server's sockets, over the Watt-32 TCP/IP library

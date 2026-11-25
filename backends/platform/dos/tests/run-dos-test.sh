@@ -11,14 +11,17 @@
 #   pageflip16      the same in 800x600 high colour
 #   plugadd         --add finds a folder holding an empty TESTBED file, through the detection plug-in
 #   plugsmoke       the Testbed engine runs through its plug-in and is left cleanly
+#   mpt             a MOD, an S3M, an XM and an IT file play with sound through ScummVM's tracker stream (libopenmpt)
+#   mptdxe          tracker music is OPENMPT.DXE: not loaded for the launcher, loaded for a Testbed game, plays a
+#                   MOD file, unloaded with the engine's plug-in (mptdxesdl: the same on the SDL3 build)
 #   smoke           the launcher comes up and draws
 #   nodpmi          without dist's CWSDPMI.EXE the program cannot start (so the other tests ran on it)
 #   sdl             the SDL3 build: VESA video, Sound Blaster audio, the launcher draws, a clean exit
 #
 # Prints "DOSTEST <name> OK". Environment:
 #   DOS_BUILD       the build whose dist/ is run (default: build-dos-stable)
-#   TESTBED_BUILD   for plugadd and plugsmoke (default: build-dos-testbed)
-#   SDL_BUILD       for sdl (default: build-dos-sdl-testbed)
+#   TESTBED_BUILD   for plugadd, plugsmoke, mpt and mptdxe (default: build-dos-testbed)
+#   SDL_BUILD       for sdl and mptdxesdl (default: build-dos-sdl-testbed)
 #   KEEP=1          keep the run folder afterwards
 . "$(dirname "$0")/common.sh"
 
@@ -30,8 +33,8 @@ DOS_BUILD=${DOS_BUILD:-$SRC/build-dos-stable}
 case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
-  plugadd|plugsmoke) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  plugadd|plugsmoke|mpt|mptdxe) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
+  sdl|mptdxesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -273,6 +276,78 @@ import sys
 print(max(sum(1 for b in open(f,'rb').read()[1078:][:200000] if b) for f in sys.argv[1:]))" "$RUN"/SHOT*.BMP)
     [ "$NONBLACK" -gt 1000 ] || fail "every screenshot is black"
     ok "Testbed ran through its plug-in, $SHOTS screenshots"
+    ;;
+
+  mpt)
+    # libopenmpt on four module formats, through ScummVM's tracker stream (audio/mods/universaltracker.cpp): each
+    # file must open as a module and give sound. The self-test runs as a Testbed game starts (OPENMPT.DXE is loaded)
+    write_conf "$CONF" 64
+    mkdir -p "$RUN/GAME"
+    : > "$RUN/GAME/TESTBED"
+    FILES=
+    for ext in MOD S3M XM IT; do
+      python3 "$TESTS_DIR/gen-test-mod.py" "$RUN/TEST.$ext" || fail "cannot write the test module TEST.$ext"
+      FILES="$FILES${FILES:+;}TEST.$ext"
+    done
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 150 -c "mount c $RUN" -c "mount d $RUN/GAME" -c "c:" \
+      -c "set SCUMMVM_DOS_MPTTEST=$FILES" -c "set SCUMMVM_DOS_QUITAT=30" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -p D:\ testbed > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep "DOSOPENMPT: self-test FAILED" && fail "a test module did not play"
+    RESULT=
+    for ext in MOD S3M XM IT; do
+      PLAYED=$(echo "$LOG" | sed -n "s/.*DOSOPENMPT: self-test: TEST.$ext played, \([0-9]*\) frames at [0-9]* Hz, peak \([0-9]*\),.*/\1 \2/p" | head -1)
+      [ -n "$PLAYED" ] || fail "no self-test result for TEST.$ext"
+      set -- $PLAYED
+      [ "$1" -gt 0 ] && [ "$2" -gt 0 ] || fail "TEST.$ext gave no sound ($1 frames, peak $2)"
+      RESULT="$RESULT $ext ($1 frames, peak $2)"
+    done
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "played:$RESULT"
+    ;;
+
+  mptdxe|mptdxesdl)
+    # libopenmpt is OPENMPT.DXE next to the program: the launcher alone does not load it; a game of an engine with
+    # tracker music (Testbed) does, a MOD file plays through it, and it goes when the engine's plug-in does
+    [ -f "$RUN/OPENMPT.DXE" ] || fail "no OPENMPT.DXE next to SCUMMVM.EXE in dist/"
+    ls "$RUN/PLUGINS" | grep -qi '^openmpt\.dxe$' && fail "OPENMPT.DXE is in PLUGINS, where it would be taken for an engine"
+    write_conf "$CONF" 64
+    mkdir -p "$RUN/GAME"
+    : > "$RUN/GAME/TESTBED"
+    python3 "$TESTS_DIR/gen-test-mod.py" "$RUN/TEST.MOD" || fail "cannot write the test module"
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+
+    run_dosbox "$CONF" 90 -c "mount c $RUN" -c "c:" \
+      -c "set SCUMMVM_DOS_PLUGLOG=1" -c "set SCUMMVM_DOS_QUITAT=12" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "DOSPLUGIN: loaded" || fail "the launcher run did not log its plug-ins"
+    echo "$LOG" | grep -q "DOSOPENMPT: loaded" && fail "the launcher alone loaded OPENMPT.DXE"
+    rm -f "$RUN"/[Ss][Cc][Uu][Mm][Mm][Vv][Mm].[Ll][Oo][Gg] "$RUN/OUT.TXT"
+
+    run_dosbox "$CONF" 150 -c "mount c $RUN" -c "mount d $RUN/GAME" -c "c:" \
+      -c "set SCUMMVM_DOS_PLUGLOG=1" -c "set SCUMMVM_DOS_MPTTEST=TEST.MOD" -c "set SCUMMVM_DOS_QUITAT=30" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -p D:\ testbed > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "DOSOPENMPT: loaded OPENMPT.DXE" || fail "starting the Testbed game did not load OPENMPT.DXE"
+    echo "$LOG" | grep -q "DOSOPENMPT: self-test FAILED" && fail "the test module did not play"
+    PLAYED=$(echo "$LOG" | sed -n 's/.*DOSOPENMPT: self-test: TEST.MOD played, \([0-9]*\) frames at [0-9]* Hz, peak \([0-9]*\), 1 module(s) open.*/\1 \2/p' | head -1)
+    [ -n "$PLAYED" ] || fail "no self-test result for TEST.MOD"
+    set -- $PLAYED
+    [ "$1" -gt 0 ] && [ "$2" -gt 0 ] || fail "the test module gave no sound ($1 frames, peak $2)"
+    # The module goes after the engine's plug-in, not before
+    ORDER=$(echo "$LOG" | grep -io "DOSPLUGIN: unloaded TESTBED.DXE\|DOSOPENMPT: unloaded OPENMPT.DXE" | tr 'a-z\n' 'A-Z ')
+    case "$ORDER" in
+      *"DOSPLUGIN: UNLOADED TESTBED.DXE DOSOPENMPT: UNLOADED OPENMPT.DXE"*) ;;
+      *) fail "OPENMPT.DXE was not unloaded after the Testbed plug-in ($ORDER)" ;;
+    esac
+    tr -d '\r' < "$RUN/OUT.TXT" | grep -qi "found openmpt.dxe" && fail "OPENMPT.DXE was taken for a plug-in"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "OPENMPT.DXE loaded for the game only, TEST.MOD played ($1 frames, peak $2), unloaded with the engine"
     ;;
 
   pageflip|pageflipbanked|pageflip16)

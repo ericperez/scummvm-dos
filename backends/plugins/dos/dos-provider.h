@@ -44,6 +44,9 @@ protected:
  */
 void dosPluginSelfTest(const char *engineIds);
 
+/** The heap in use, in bytes (what plug-ins take and give back) */
+unsigned dosHeapInUse();
+
 #endif // defined(DYNAMIC_MODULES) && defined(USE_DOS_DRIVER)
 
 #endif

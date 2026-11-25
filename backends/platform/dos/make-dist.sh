@@ -5,6 +5,7 @@
 #
 #   SCUMMVM.EXE, CWSDPMI.EXE   the program and its DPMI host (CWSDPMI r7)
 #   PLUGINS/                   the engine plug-ins (plug-in builds)
+#   OPENMPT.DXE                tracker music, loaded by the program when a game needs it (plug-in builds)
 #   SCUMMREM.ZIP, GUIICONS.DAT the themes (also SCUMMCLA.ZIP, SCUMMMOD.ZIP) and the icons
 #   DATA/                      engine data and TRANSLAT.DAT, under 8.3 names
 #   COPYING.TXT, LICENSES/     the licences
@@ -52,6 +53,7 @@ fi
 # The plug-ins this configuration builds: the engines it marks DYNAMIC_PLUGIN in config.mk, each cut to 8 characters
 # as the build names it (PLUGIN_NAME), and the detection tables. Checked before anything is erased.
 EXPECTED_PLUGINS=
+OPENMPT_DXE=
 if defined DYNAMIC_MODULES; then
   DETECTION=$(grep -o 'PLUGIN_DETECTION_NAME=\\"[a-z0-9_]*' "$BUILD/config.mk" | head -1 | sed 's/.*=\\"//')
   [ -n "$DETECTION" ] || { echo "make-dist: no PLUGIN_DETECTION_NAME in $BUILD/config.mk" >&2; exit 1; }
@@ -59,6 +61,11 @@ if defined DYNAMIC_MODULES; then
   for id in $EXPECTED_PLUGINS; do
     [ -f "$BUILD/plugins/$id.dxe" ] || { echo "make-dist: $id.dxe is enabled in $BUILD but was not built (run make -C $BUILD)" >&2; exit 1; }
   done
+  # libopenmpt is a module of its own in a plug-in build (dos.mk)
+  if grep -q -- "-lopenmpt" "$BUILD/config.mk"; then
+    OPENMPT_DXE=$BUILD/backends/platform/dos/openmpt.dxe
+    [ -f "$OPENMPT_DXE" ] || { echo "make-dist: $OPENMPT_DXE was not built (run make -C $BUILD)" >&2; exit 1; }
+  fi
 fi
 
 # The output folder is erased before it is filled. It must be a folder of its own: never the root, a home folder, the
@@ -113,6 +120,11 @@ if defined DYNAMIC_MODULES; then
       *) echo "make-dist: not copying $(basename "$dxe"): not enabled in this build" ;;
     esac
   done
+  # Next to the program, not in PLUGINS: it is not an engine plug-in
+  if [ -n "$OPENMPT_DXE" ]; then
+    cp "$OPENMPT_DXE" "$OUT/OPENMPT.DXE"
+    echo "./OPENMPT.DXE" >> "$LIST"
+  fi
 fi
 
 # Themes and icons keep the names the program already looks for

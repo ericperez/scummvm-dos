@@ -46,6 +46,9 @@ for text in "DOS_STATIC=1" "dxe-link.sh" "dxe-exports.sh" "isAllDetectionLoaded"
   has "$PLUGINS_DOC" "$text"
 done
 has "$FEATURES" "PLUGINS.md"
+has "$FEATURES" "OPENMPT.DXE"
+has "$PLUGINS_DOC" "OPENMPT.DXE"
+has "$PLUGINS_DOC" "check-openmpt-dxe.sh"
 has "$ENGINES" "PLUGINS.md"
 has "$DOSDIR/configure-dos.sh" "DOS_STATIC"
 hasnt "$PLUGINS_DOC" "opt-in"
@@ -68,6 +71,15 @@ for name in $(sed -n 's/^  \([a-z]*\))$/\1/p' "$DOSDIR/tests/run-dos-test.sh"); 
 done
 for suite in $(sed -n 's/^class \(Dos[A-Za-z]*TestSuite\).*/\1/p' "$SRC"/test/backends/dos/*.h); do
   grep -q -F -- "$suite" "$README" || fail "tests/README.md does not list the suite $suite"
+done
+
+# Every "run-dos-test.sh <name>" the notes name is a test run-dos-test.sh has
+CASES=" $(sed -n 's/^  \([a-z0-9|]*\))$/\1/p' "$DOSDIR/tests/run-dos-test.sh" | tr '|\n' '  ') "
+for name in $(cat "$DOSDIR"/*.md "$README" | grep -o 'run-dos-test\.sh [a-z0-9]*' | sed 's/.* //' | sort -u); do
+  case "$CASES" in
+    *" $name "*) ;;
+    *) fail "the notes name a runtime test that does not exist: run-dos-test.sh $name" ;;
+  esac
 done
 
 # Every script in tests/ is mentioned somewhere in its README

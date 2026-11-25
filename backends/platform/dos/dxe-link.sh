@@ -1,17 +1,22 @@
 #!/bin/sh
 # Links a plug-in's objects into a DXE3 module; configure makes it the linker for plugins/*.dxe:
 #
-#   dxe-link.sh <object files> [linker options] -o <plugins/name.dxe>
+#   dxe-link.sh [-E <export prefix>] <object files> [linker options] -o <plugins/name.dxe>
 #
 # Unresolved symbols are allowed (-U, the program's export table supplies them), only the plug-in entry
-# points are exported (-E _PLUGIN_), and dos-plugin-eh.cpp is added to register the unwind tables.
+# points are exported (-E _PLUGIN_, or the prefix given), and dos-plugin-eh.cpp is added to register the
+# unwind tables. Linker options (-L, -l) go to the link as they are.
 set -e
 
 OUT=
 OBJS=
+OPTIONS=
+EXPORT=_PLUGIN_
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) OUT=$2; shift 2 ;;
+    -E) EXPORT=$2; shift 2 ;;
+    -*) OPTIONS="$OPTIONS $1"; shift ;;
     *) OBJS="$OBJS $1"; shift ;;
   esac
 done
@@ -60,4 +65,4 @@ EH_OBJECT=$SHORT/eh.o
 i586-pc-msdosdjgpp-g++ -O2 -march=i486 -fno-rtti -c "$EH_SOURCE" -o "$EH_OBJECT"
 
 # shellcheck disable=SC2086
-dxe3gen -o "$OUT" -U -E _PLUGIN_ $ABS_OBJS "$EH_OBJECT"
+dxe3gen -o "$OUT" -U -E "$EXPORT" $ABS_OBJS "$EH_OBJECT" $OPTIONS

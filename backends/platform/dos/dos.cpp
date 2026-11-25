@@ -57,6 +57,7 @@
 #include "backends/platform/dos/dos-input.h"
 #include "backends/platform/dos/dos-keyboard.h"
 #include "backends/platform/dos/dos-mixer.h"
+#include "backends/platform/dos/dos-openmpt.h"
 #ifdef USE_SDL_NET
 	#include "backends/platform/dos/dos-net.h"
 #endif
@@ -77,6 +78,8 @@ public:
 	void getTimeAndDate(TimeDate &td, bool skipRecord = false) const override;
 
 	void quit() override;
+
+	void engineInit() override;
 
 	void logMessage(LogMessageType::Type type, const char *message) override;
 
@@ -514,6 +517,10 @@ void OSystem_DOS::getTimeAndDate(TimeDate &td, bool skipRecord) const {
 
 void dosSoundBlasterShutdown();
 void dosOplSilence();
+
+void OSystem_DOS::engineInit() {
+	dosOpenMPTEngineInit(ConfMan.get("engineid").c_str());
+}
 
 void OSystem_DOS::quit() {
 	// Clean up and leave through _exit(): exit() would run atexit handlers of unloaded plug-ins

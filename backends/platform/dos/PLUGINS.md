@@ -42,18 +42,48 @@ test builds that `tests/rebuild-builds.sh` makes each have a recipe in `tests/co
 program and is only the control the plug-in checks measure against).
 `make-dist.sh` puts the program and its `PLUGINS` folder side by side:
 
-    SCUMMVM.EXE  CWSDPMI.EXE  SCUMMREM.ZIP ...  DATA\  PLUGINS\AGI.DXE SCUMM.DXE ... DETECTIO.DXE
+    SCUMMVM.EXE  OPENMPT.DXE  CWSDPMI.EXE  SCUMMREM.ZIP ...  DATA\  PLUGINS\AGI.DXE SCUMM.DXE ... DETECTIO.DXE
 
 Run ScummVM from that folder, as before (the plug-ins are found relative to the current folder, like DATA). The
 launcher, `--add`, and `scummvm -p path gameid` work as in a static build. Nothing is needed on the DOS side beyond what
 a static build needs (the sound card's settings, ...; `make-dist.sh` puts the DPMI host, `CWSDPMI.EXE`, next to the program).
 
+## Tracker music: OPENMPT.DXE
+
+libopenmpt (MOD, S3M, XM, IT and the other module formats, for AGS, SLUDGE and Testbed) is a module of its own in a
+plug-in build, `OPENMPT.DXE` next to `SCUMMVM.EXE`, not part of the program. It is loaded when a game of one of those
+engines starts (`OSystem::engineInit()`, `dos-openmpt.cpp`) and unloaded with the engine's plug-in, once no module is
+left open; the launcher and the games of every other engine never load it. Should another engine open a module, its
+first tune loads it. Without the file, tracker music is off (one WARNING in the log) and the game runs.
+
+* **The program's side** (`dos-openmpt.cpp`): the six libopenmpt functions `audio/mods/universaltracker.cpp` calls,
+  each passing the call on to the module, which gives them as one table (`dosOpenMPTGetApi()`, `dos-openmpt-dxe.cpp`).
+  The engines whose `configure.engine` needs `universaltracker` are listed in `dos-openmpt.h`
+  (`tests/check-openmpt-dxe.sh` keeps that list right).
+* **The build** (`dos.mk`): `-lopenmpt` is taken off the program's link and linked into `openmpt.dxe` by `dxe-link.sh`
+  instead (with `-E _dosOpenMPT`, its one export); what the module needs from the C++ runtime, libc and zlib comes from
+  the program's export table, like a plug-in's. `make-dist.sh` copies it. `DOS_STATIC=1` builds keep libopenmpt inside
+  the program.
+
+What it saves (`i586-pc-msdosdjgpp-size`, text + data + bss of the program; the RAM as in the next section):
+
+| Build | libopenmpt in the program | In OPENMPT.DXE |
+|---|---|---|
+| stable (own backend) | 15.9 MB | **13.1 MB** |
+| stable on SDL3 | 17.2 MB | **14.4 MB** |
+| Testbed only (own backend) | 11.5 MB | **8.7 MB** |
+
+The program is 2.8 MB smaller in every build. At the launcher the stable build (own backend, 128 MB under DOSBox-X)
+holds 29.4 MB instead of 32.2 MB, the same 2.8 MB less. While a Testbed game runs, `OPENMPT.DXE` takes 2.8 MB of
+heap (loaded in 0.37 s under DOSBox-X at 100 million instructions a second) and gives all of it back when unloaded
+(`tests/run-dos-test.sh mptdxe`). On disk it is 2.5 MB.
+
 ## Small machines
 
 The figures above are what the program holds, measured under DOSBox-X with 128 MB; DOS, the DPMI host and the disk cache
 come on top, and none of it has been measured on a machine with 32 MB. Even so, they say which builds cannot fit: the
-`stable` profile holds 32 MB at the launcher (their detection tables alone are 6.5 MB, and the 112 engine
-plug-ins are only loaded one at a time), which is all of a 32 MB machine. For a small machine build with only the
+`stable` profile holds 29 MB at the launcher (32 MB with libopenmpt in the program; the detection tables alone are 6.5 MB, and the 112 engine
+plug-ins are only loaded one at a time), which is nearly all of a 32 MB machine. For a small machine build with only the
 engines whose games are installed (`ENGINES_ONLY="scumm agi sci"`, see `ENGINES.md`).
 
 ## How it works
