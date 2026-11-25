@@ -138,10 +138,11 @@ that builds it) had two faults:
 
 ## SDL3 backend (`configure --backend=sdl`, `DOS_BACKEND=sdl`)
 
-`--backend=dos` (the port's own VGA/VESA, keyboard, mouse and Sound Blaster code) is the default on DOS. As an
-alternative, `--backend=sdl` builds ScummVM's ordinary SDL backend on SDL3's DOS driver, which needs SDL3 built
-for DJGPP (`deps/build-sdl3.sh`; SDL3 3.4 has no DOS driver, so it is a snapshot of SDL's main branch) and is
-selected with `DOS_BACKEND=sdl configure-dos.sh stable`. Build folder: `build-dos-<profile>-sdl`.
+`configure-dos.sh` builds `--backend=sdl` by default: ScummVM's ordinary SDL backend on SDL3's DOS driver, which
+needs SDL3 built for DJGPP (`deps/build-sdl3.sh`, part of `deps/build-all.sh`; SDL3 3.4 has no DOS driver, so it is
+a snapshot of SDL's main branch). Build folder: `build-dos-<profile>-sdl`. `DOS_BACKEND=dos configure-dos.sh stable`
+builds `--backend=dos` instead (the port's own VGA/VESA, keyboard, mouse and Sound Blaster code, which plain
+`configure` still chooses for DJGPP), in `build-dos-<profile>`.
 
 State: the launcher comes up and draws under DOSBox-X on SDL3's VESA video driver and Sound Blaster audio driver, and the
 program is left cleanly (`tests/run-dos-test.sh sdl`, on a Testbed-only build). Also tried on real hardware.

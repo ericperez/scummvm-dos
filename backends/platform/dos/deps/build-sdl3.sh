@@ -1,6 +1,6 @@
 #!/bin/sh
 # Cross-compile SDL3 (with its DOS driver) for 32-bit MS-DOS with DJGPP, targeting the 486, as a static
-# library. Only the SDL3 backend of the port needs it (configure-dos.sh with DOS_BACKEND=sdl).
+# library. The SDL3 backend of the port needs it (configure-dos.sh's default, DOS_BACKEND=sdl).
 #
 #   sources   $L/src/SDL3    (fetch-sources.sh)
 #   objects   $L/build/SDL3

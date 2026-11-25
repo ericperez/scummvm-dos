@@ -32,8 +32,8 @@ program and 84 MB of plug-ins.
 ## Making and running it
 
     backends/platform/dos/configure-dos.sh stable
-    make -C build-dos-stable -j8
-    sh backends/platform/dos/make-dist.sh build-dos-stable build-dos-stable/dist
+    make -C build-dos-stable-sdl -j8
+    sh backends/platform/dos/make-dist.sh build-dos-stable-sdl build-dos-stable-sdl/dist
 
 `configure-dos.sh` adds `--enable-plugins --default-dynamic --enable-detection-dynamic` for every profile unless
 `DOS_STATIC=1` is set. (`DOS_PLUGINS=1`, which used to switch it on, is now the same as not setting anything.) The

@@ -20,7 +20,7 @@ Everything here is built with `i586-pc-msdosdjgpp-gcc` for a 486 (`-march=i486`)
 | faad2 (libfaad) | 2.10.1 | AAC audio in QuickTime files (Mohawk, Director, ...) | `build-audio-libs.sh` |
 | FriBidi | 1.0.16 | right-to-left text (Arabic, Hebrew, Persian user interface) | `build-extra-libs.sh` |
 | Watt-32 | master | TCP/IP and BSD sockets over a packet driver: the local web server. Installed in `prefix/watt32/` (its headers would shadow DJGPP's, so ScummVM takes them in for one file only) | `build-extra-libs.sh` |
-| SDL3 | main, snapshot `fda4ece` (3.5.0) | the SDL3 backend (`DOS_BACKEND=sdl`): SDL's DOS video, audio, keyboard, mouse and joystick drivers. A release (3.4.x) has no DOS driver. Needs `cmake` | `build-sdl3.sh` (not part of `build-all.sh`) |
+| SDL3 | main, snapshot `fda4ece` (3.5.0) | the SDL3 backend (the default, `DOS_BACKEND=sdl`): SDL's DOS video, audio, keyboard, mouse and joystick drivers. A release (3.4.x) has no DOS driver. Needs `cmake` | `build-sdl3.sh` |
 | CWSDPMI | r7 | the DPMI host DJGPP programs start when DOS has none. Not linked: `make-dist.sh` puts the unmodified `CWSDPMI.EXE` from the binary package next to `SCUMMVM.EXE` | `fetch-sources.sh` (nothing to build) |
 | libopenmpt | 0.8.9 | tracker music: MOD, S3M, XM, IT and the other module formats (SLUDGE games, AGS games with module music). 8 MB static library | `build-extra-libs.sh openmpt` |
 

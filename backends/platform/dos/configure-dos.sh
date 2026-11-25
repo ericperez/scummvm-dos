@@ -5,23 +5,26 @@
 # Usage:  configure-dos.sh stable [build-folder]
 #
 #   backends/platform/dos/configure-dos.sh stable
-#   make -C build-dos-stable -j8
+#   make -C build-dos-stable-sdl -j8
 #
-# The default build folder is build-dos-stable in the source folder (-static and -sdl are added for
-# DOS_STATIC=1 and DOS_BACKEND=sdl). ENGINES_ONLY and EXTRA_ENGINES need a folder of their own.
+# The build uses SDL3's DOS driver unless DOS_BACKEND=dos. The default build folder is build-dos-stable-sdl
+# in the source folder (build-dos-stable with DOS_BACKEND=dos; -static is added for DOS_STATIC=1).
+# ENGINES_ONLY and EXTRA_ENGINES need a folder of their own.
 #
 # Environment:
 #   EXTRA_ENGINES=...     engines to add, e.g. "testbed"
 #   ENGINES_ONLY=...      only these engines, e.g. "scumm" (sub-engines by name: scumm_7_8, he)
 #   DOS_NO_NETWORK=1      leave out the local web server (Watt-32)
 #   DOS_NO_TRANSLATION=1  leave out the translated user interface
-#   DOS_BACKEND=sdl       SDL3's DOS driver for video, input and PCM (needs deps/build-sdl3.sh)
+#   DOS_BACKEND=sdl|dos   SDL3's DOS driver for video, input and PCM (the default, needs deps/build-sdl3.sh),
+#                         or the port's own VGA/VESA, keyboard, mouse and Sound Blaster code
 #   DOS_STATIC=1          engines inside the program instead of plug-ins
 #   DOS_NO_OPENMPT=1      leave out tracker music (libopenmpt)
 #   DOS_MT32EMU=1         add the software MT-32 synthesiser (Pentium II or faster)
 #   DJGPP_HOME, DEPS      the cross compiler and the cross-built libraries (see dos-env.sh)
 
 PROFILE=$1
+DOS_BACKEND=${DOS_BACKEND:-sdl}
 case "$PROFILE" in
   stable) ;;
   *) echo "usage: configure-dos.sh stable [build-folder]" >&2; exit 2 ;;
@@ -46,7 +49,7 @@ dos_env || exit 1
 dos_check_libs || exit 1
 
 case "$DOS_BACKEND" in
-  ""|dos) BACKEND_OPTION= ;;   # configure chooses the port's own backend for DJGPP
+  dos) BACKEND_OPTION= ;;   # configure chooses the port's own backend for DJGPP
   sdl)
     [ -f "$DEPS/lib/libSDL3.a" ] && [ -f "$DEPS/lib/pkgconfig/sdl3.pc" ] || {
       echo "error: DOS_BACKEND=sdl needs SDL3 built for DJGPP in $DEPS (sh $DOS_DIR/deps/build-sdl3.sh)." >&2
@@ -58,7 +61,7 @@ case "$DOS_BACKEND" in
     ;;
   *) echo "error: DOS_BACKEND is dos or sdl" >&2; exit 2 ;;
 esac
-echo "Backend: ${BACKEND_OPTION:---backend=dos (default)}"
+echo "Backend: ${BACKEND_OPTION:---backend=dos}"
 
 mkdir -p "$BUILD" && BUILD=$(cd "$BUILD" && pwd) || exit 1
 cd "$BUILD" || exit 1

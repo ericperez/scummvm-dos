@@ -92,7 +92,7 @@ So the full list needs a machine with at least 128 MB of RAM. On a smaller one, 
 
 ## The build profile
 
-`configure-dos.sh` (same folder) configures a build for the one profile. It can be run from any folder. The build goes in `build-dos-<profile>` in the source folder (`build-dos-<profile>-static` with `DOS_STATIC=1`), the way the Atari scripts keep a `build-<variant>` folder, or in the folder given as a second argument; `/build*` in `.gitignore` keeps it out of git status. It finds the DJGPP cross-compiler through `DJGPP_HOME` (or `PATH`) and the cross-built libraries through `DEPS`; `dos-env.sh` says how. Every profile is made with the engines as plug-ins unless `DOS_STATIC=1` is set.
+`configure-dos.sh` (same folder) configures a build for the one profile. It can be run from any folder. The build is made on SDL3's DOS driver (`DOS_BACKEND=dos` for the port's own backend) and goes in `build-dos-<profile>-sdl` in the source folder (`build-dos-<profile>` with `DOS_BACKEND=dos`, `-static` added with `DOS_STATIC=1`), the way the Atari scripts keep a `build-<variant>` folder, or in the folder given as a second argument; `/build*` in `.gitignore` keeps it out of git status. It finds the DJGPP cross-compiler through `DJGPP_HOME` (or `PATH`) and the cross-built libraries through `DEPS`; `dos-env.sh` says how. Every profile is made with the engines as plug-ins unless `DOS_STATIC=1` is set.
 
 | Profile | Engines | Colour | File | Stripped | Loaded into RAM | RAM to reach the menu |
 |---|---|---|---|---|---|---|
@@ -100,11 +100,11 @@ So the full list needs a machine with at least 128 MB of RAM. On a smaller one, 
 
 (Measured 2026-11-09; MB here means 1,048,576 bytes. "Stripped" is the file with the debug information taken out, which is the part DOS actually loads.) It starts in DOSBox-X and brings up the menu. For a small machine, build with only the engines whose games are installed.
 
-The build to ship is `stable`, with the engines as plug-ins (the `stable` test build; `stable-static` is the all-in-one control).
+The build to ship is `stable`, with the engines as plug-ins, on SDL3 (the `stable-sdl` test build; `stable` is the same on the own backend, `stable-static` the all-in-one control).
 
 ```
 backends/platform/dos/configure-dos.sh stable
-make -C build-dos-stable -j8
+make -C build-dos-stable-sdl -j8
 ```
 
 Settings for `configure-dos.sh`: `ENGINES_ONLY="scumm"` builds only the engines you name, whatever the profile says (`ENGINES_ONLY=scumm configure-dos.sh stable build-dos-scumm06` does this: SCUMM version 0 to 6 only, which includes Sam & Max, Monkey Island 1 and 2 and Day of the Tentacle; `scumm_7_8` adds The Dig, Full Throttle and Curse of Monkey Island, and `he` the Humongous games); `EXTRA_ENGINES="testbed"` adds engines to any profile; `ENGINES_ONLY` and `EXTRA_ENGINES` need the build folder as the second argument, so that they cannot reconfigure the profile's own folder into something else.

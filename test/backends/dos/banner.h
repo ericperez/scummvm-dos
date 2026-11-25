@@ -11,30 +11,30 @@
 class DosBannerTestSuite : public CxxTest::TestSuite {
 public:
 	void test_layout_vga() {
-		// VGA mode 13h: the font doubled, as the own backend has always drawn it
+		// VGA mode 13h: the 8x8 font 1:1
 		const DosBannerLayout l = dosBannerLayout(320, 200);
-		TS_ASSERT_EQUALS(l.scale, 2);
-		TS_ASSERT_EQUALS(l.margin, 8);
-		TS_ASSERT_EQUALS(l.glyph, 16);
-		TS_ASSERT_EQUALS(l.lineStep, 18);
-		TS_ASSERT_EQUALS(l.perLine, 19);
-		TS_ASSERT_EQUALS(l.maxLines, 10);
+		TS_ASSERT_EQUALS(l.scale, 1);
+		TS_ASSERT_EQUALS(l.margin, 4);
+		TS_ASSERT_EQUALS(l.glyph, 8);
+		TS_ASSERT_EQUALS(l.lineStep, 9);
+		TS_ASSERT_EQUALS(l.perLine, 39);
+		TS_ASSERT_EQUALS(l.maxLines, 21);
 	}
 
 	void test_layout_scales_with_screen() {
 		// The same share of the screen at a higher resolution
-		TS_ASSERT_EQUALS(dosBannerLayout(640, 400).scale, 4);
-		TS_ASSERT_EQUALS(dosBannerLayout(640, 400).perLine, 19);
-		TS_ASSERT_EQUALS(dosBannerLayout(640, 480).scale, 4);
-		TS_ASSERT_EQUALS(dosBannerLayout(800, 600).scale, 4);
-		TS_ASSERT_EQUALS(dosBannerLayout(1024, 768).scale, 6);
-		TS_ASSERT_EQUALS(dosBannerLayout(1280, 1024).scale, 8);
+		TS_ASSERT_EQUALS(dosBannerLayout(640, 400).scale, 2);
+		TS_ASSERT_EQUALS(dosBannerLayout(640, 400).perLine, 39);
+		TS_ASSERT_EQUALS(dosBannerLayout(640, 480).scale, 2);
+		TS_ASSERT_EQUALS(dosBannerLayout(800, 600).scale, 2);
+		TS_ASSERT_EQUALS(dosBannerLayout(1024, 768).scale, 3);
+		TS_ASSERT_EQUALS(dosBannerLayout(1280, 1024).scale, 4);
 	}
 
 	void test_layout_small_screen() {
 		const DosBannerLayout l = dosBannerLayout(100, 60);
-		TS_ASSERT_EQUALS(l.scale, 2);
-		TS_ASSERT_EQUALS(l.perLine, 8);
+		TS_ASSERT_EQUALS(l.scale, 1);
+		TS_ASSERT_EQUALS(l.perLine, 11);
 		TS_ASSERT(l.maxLines >= 1);
 	}
 
@@ -91,8 +91,8 @@ public:
 		const DosBannerLayout l = dosBannerLayout(320, 200);
 		char out[256];
 		const int lines = dosBannerWrap(msg, l.perLine, l.maxLines, out, sizeof(out));
-		TS_ASSERT_EQUALS(strcmp(out, "User picked target\n'testbed' (engine\nID 'testbed', game\nID 'testbed')...\n"), 0);
-		TS_ASSERT_EQUALS(lines, 4);
+		TS_ASSERT_EQUALS(strcmp(out, "User picked target 'testbed' (engine ID\n'testbed', game ID 'testbed')...\n"), 0);
+		TS_ASSERT_EQUALS(lines, 2);
 	}
 
 	void test_wrap_small_buffer() {
