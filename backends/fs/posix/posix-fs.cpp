@@ -134,6 +134,12 @@ POSIXFilesystemNode::POSIXFilesystemNode(const Common::String &p) {
 #endif
 	// Normalize the path (that is, remove unneeded slashes etc.)
 	_path = Common::normalizePath(_path, '/');
+#ifdef __DJGPP__
+	// normalizePath() strips the slash of "C:/", but "C:" alone means the
+	// current directory of that drive, not its root.
+	if (_path.size() == 2 && _path[1] == ':')
+		_path += '/';
+#endif
 	_displayName = Common::lastPathComponent(_path, '/');
 
 	// TODO: should we turn relative paths into absolute ones?
