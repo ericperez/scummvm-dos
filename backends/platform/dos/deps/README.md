@@ -6,7 +6,7 @@ Everything here is built with `i586-pc-msdosdjgpp-gcc` for a 486 (`-march=i486`)
 |---|---|---|---|
 | libmad | 0.15.1b | MP3 speech and music | `build-libs.sh` |
 | libogg | 1.3.5 | Ogg container | `build-libs.sh` |
-| Tremor | master | Ogg Vorbis (integer decoder) | `build-libs.sh` |
+| Tremor | master at `820fb32` | Ogg Vorbis (integer decoder) | `build-libs.sh` |
 | libFLAC | 1.4.3 | FLAC (decoder only) | `build-libs.sh` |
 | zlib | 1.3.1 | libpng; ScummVM's own zlib use | `build-image-libs.sh` |
 | libpng | 1.6.43 | PNG pictures | `build-image-libs.sh` |
@@ -19,7 +19,7 @@ Everything here is built with `i586-pc-msdosdjgpp-gcc` for a 486 (`-march=i486`)
 | libmpcdec | 1.2.6 | Musepack audio (QD engine) | `build-audio-libs.sh` |
 | faad2 (libfaad) | 2.10.1 | AAC audio in QuickTime files (Mohawk, Director, ...) | `build-audio-libs.sh` |
 | FriBidi | 1.0.16 | right-to-left text (Arabic, Hebrew, Persian user interface) | `build-extra-libs.sh` |
-| Watt-32 | master | TCP/IP and BSD sockets over a packet driver: the local web server. Installed in `prefix/watt32/` (its headers would shadow DJGPP's, so ScummVM takes them in for one file only) | `build-extra-libs.sh` |
+| Watt-32 | master at `3cf6f4e` | TCP/IP and BSD sockets over a packet driver: the local web server. Installed in `prefix/watt32/` (its headers would shadow DJGPP's, so ScummVM takes them in for one file only) | `build-extra-libs.sh` |
 | SDL3 | main, snapshot `fda4ece` (3.5.0) | the SDL3 backend (the default, `DOS_BACKEND=sdl`): SDL's DOS video, audio, keyboard, mouse and joystick drivers. A release (3.4.x) has no DOS driver. Needs `cmake` | `build-sdl3.sh` |
 | CWSDPMI | r7 | the DPMI host DJGPP programs start when DOS has none. Not linked: `make-dist.sh` puts the unmodified `CWSDPMI.EXE` from the binary package next to `SCUMMVM.EXE` | `fetch-sources.sh` (nothing to build) |
 | libopenmpt | 0.8.9 | tracker music: MOD, S3M, XM, IT and the other module formats (SLUDGE games, AGS games with module music). 8 MB static library | `build-extra-libs.sh openmpt` |
@@ -45,7 +45,7 @@ collect-licenses.sh                # the licence texts, into build-dos-deps/pref
 
 Needs the DJGPP cross-compiler (`DJGPP_HOME`, see `../dos-env.sh`), `curl`, `tar` and `unzip`. `DEPS_ROOT` puts the work folder somewhere other than `build-dos-deps` (`/build*` in `.gitignore` keeps it out of git status). Sources are unpacked untouched in `src/`, built out of tree in `build/`, installed in `prefix/`.
 
-Two packages have no release to pin: Tremor and Watt-32 are taken from the upstream `master`. The checksums in `sources.conf` are those of the snapshots this port was tested with, so a download made after upstream has changed stops with a checksum error. Keep a copy of the tarballs that worked (`build-dos-deps/dl`) with the release, or update the checksum after testing the newer one.
+Two packages have no release to pin: Tremor and Watt-32 are taken from upstream `master`, at the commits this port was tested with (`sources.conf` downloads the archive of that commit, which stays the same when `master` moves on). To move to a newer commit, change its URL and checksum in `sources.conf` after testing it.
 
 ## Licences
 
