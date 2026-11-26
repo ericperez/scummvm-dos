@@ -33,7 +33,16 @@ program and 84 MB of plug-ins.
 
     backends/platform/dos/configure-dos.sh stable
     make -C build-dos-stable-sdl -j8
-    sh backends/platform/dos/make-dist.sh build-dos-stable-sdl build-dos-stable-sdl/dist
+    make -C build-dos-stable-sdl dosdist
+
+`make dosdist` runs `make-dist.sh` (which can also be run on its own: `make-dist.sh <build> <build>/dist`) and zips
+`dist/` into the build folder as the release archive, `scummvm-<version>-dos.zip` (`-dos-static.zip` for a
+`DOS_STATIC=1` build; `DOSDIST_ZIP=name.zip` names it otherwise). Everything in it is inside a `SCUMMVM` folder, so
+it unpacks on the DOS machine as `C:\SCUMMVM`. Like other ports' releases it has ScummVM's documents and the licences
+of the code in ScummVM (`DIST_FILES_DOCS`), in `DOC` as DOS text files with 8.3 names (`README.TXT`, `COPYING.LGP`,
+...). `make-dist.sh` takes the libraries' licences and `CWSDPMI.EXE` from `DEPS` and `DEPS_ROOT` (by default
+`build-dos-deps` in the source folder, see `dos-env.sh`): set them as for `configure-dos.sh` when the libraries are
+elsewhere.
 
 `configure-dos.sh` adds `--enable-plugins --default-dynamic --enable-detection-dynamic` for every profile unless
 `DOS_STATIC=1` is set. (`DOS_PLUGINS=1`, which used to switch it on, is now the same as not setting anything.) The

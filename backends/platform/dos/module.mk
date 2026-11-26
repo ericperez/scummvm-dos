@@ -49,3 +49,23 @@ endif
 MODULE_OBJS := $(addprefix $(MODULE)/, $(MODULE_OBJS))
 OBJS := $(MODULE_OBJS) $(OBJS)
 MODULE_DIRS += $(sort $(dir $(MODULE_OBJS)))
+
+# Release archive: dist/ as make-dist.sh assembles it, zipped inside a SCUMMVM folder.
+# Here rather than in dos.mk, which plug-in builds read instead of ports.mk and static builds do not read at all.
+DOSDIST_ZIP ?= scummvm-$(VERSION)-dos$(if $(DYNAMIC_MODULES),,-static).zip
+
+dosdist: $(EXECUTABLE) plugins
+	MAKE="$(MAKE)" sh $(srcdir)/backends/platform/dos/make-dist.sh "$(CURDIR)" "$(CURDIR)/dist"
+	$(RM_REC) dosdist.tmp
+	$(RM) $(DOSDIST_ZIP)
+	$(MKDIR) dosdist.tmp
+	$(CP) -R dist dosdist.tmp/SCUMMVM
+	cd dosdist.tmp && $(ZIP) -r -X -9 ../$(DOSDIST_ZIP) SCUMMVM
+	$(RM_REC) dosdist.tmp
+	@echo "Release archive: $(CURDIR)/$(DOSDIST_ZIP)"
+
+# The documents make-dist.sh puts in DOC, the same list other ports' dist targets ship
+dosdist-docs:
+	@echo $(DIST_FILES_DOCS)
+
+.PHONY: dosdist dosdist-docs

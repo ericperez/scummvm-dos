@@ -9,6 +9,7 @@
 #   SCUMMREM.ZIP, GUIICONS.DAT the themes (also SCUMMCLA.ZIP, SCUMMMOD.ZIP) and the icons
 #   DATA/                      engine data and TRANSLAT.DAT, under 8.3 names
 #   COPYING.TXT, LICENSES/     the licences
+#   DOC/                       ScummVM's documents and the licences of the code in it, as DOS text (DIST_FILES_DOCS)
 #
 # fonts-cjk.dat (36 MB, Chinese, Japanese and Korean) is left out.
 #
@@ -103,6 +104,22 @@ put() {
   cp "$1" "$OUT/$2/$3"
 }
 
+# put_text <source file> <folder under the output> <8.3 name>: the same, with DOS line ends (CR LF)
+put_text() {
+  put "$1" "$2" "$3"
+  awk '{ sub(/\r$/, ""); printf "%s\r\n", $0 }' "$1" > "$OUT/$2/$3"
+}
+
+# The 8.3 name of a document: a text or Markdown file, or one with no extension, ends in .TXT (README.md: README.TXT,
+# COPYRIGHT: COPYRIGH.TXT); a licence named by its extension keeps it (COPYING.LGPL: COPYING.LGP)
+doc_name() {
+  case "$1" in
+    *.md|*.txt) short "${1%.*}.txt" ;;
+    *.*) short "$1" ;;
+    *) short "$1.txt" ;;
+  esac
+}
+
 "$STRIP" --strip-all -o "$OUT/SCUMMVM.EXE" "$BUILD/scummvm.exe"
 echo "./SCUMMVM.EXE" >> "$LIST"
 
@@ -152,6 +169,18 @@ for mk in engine_data_core.mk engine_data.mk; do
     fi
     put "$SRC/$path" DATA "$(short "$(basename "$path")")"
   done
+done
+
+# ScummVM's documents and the licences of the code it includes, the files other ports' dist targets ship
+# (DIST_FILES_DOCS), listed by the build's makefile (dosdist-docs in module.mk)
+DOCS=$(${MAKE:-make} -s --no-print-directory -C "$BUILD" dosdist-docs) || {
+  echo "make-dist: cannot list the documents (make -C $BUILD dosdist-docs)" >&2
+  exit 1
+}
+[ -n "$DOCS" ] || { echo "make-dist: $BUILD lists no documents" >&2; exit 1; }
+mkdir -p "$OUT/DOC"
+for doc in $DOCS; do
+  put_text "$doc" DOC "$(doc_name "$(basename "$doc")")"
 done
 
 # The licence of ScummVM and of the libraries linked into the program (the folder deps/collect-licenses.sh makes)
