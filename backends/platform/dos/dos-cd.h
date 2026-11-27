@@ -28,6 +28,8 @@
 
 #include "common/scummsys.h"
 
+#include "backends/platform/dos/dos-blaster.h"
+
 enum {
 	kDosCdFramesPerSecond = 75,
 	kDosCdFramesPerMinute = 75 * 60,
@@ -429,45 +431,15 @@ enum {
 	kDosCdMixerSb16SwitchesCd = 0x06    ///< CD left (bit 2) and right (bit 1) in the output
 };
 
-inline unsigned dosCdBlasterNumber(const char *&p, unsigned radix) {
-	unsigned value = 0;
-	for (;; p++) {
-		const char c = (*p >= 'A' && *p <= 'Z') ? (char)(*p - 'A' + 'a') : *p;
-		unsigned digit;
-		if (c >= '0' && c <= '9')
-			digit = c - '0';
-		else if (radix == 16 && c >= 'a' && c <= 'f')
-			digit = c - 'a' + 10;
-		else
-			return value;
-		value = value * radix + digit;
-	}
-}
-
 /**
  * The mixer of the card a BLASTER variable such as "A220 I5 D1 H5 T6" describes, and its port:
  * T6 or a 16-bit DMA channel (H) is an SB16, T2, T4 and T5 an SB Pro
  */
 inline DosCdMixer dosCdBlasterMixer(const char *blaster, unsigned &base) {
-	base = 0;
-	unsigned type = 0;
-	bool highDma = false;
-	const char *p = blaster;
-	while (p && *p) {
-		if (*p == ' ') {
-			p++;
-			continue;
-		}
-		const char tag = *p++;
-		if (tag == 'A' || tag == 'a')
-			base = dosCdBlasterNumber(p, 16);
-		else if (tag == 'T' || tag == 't')
-			type = dosCdBlasterNumber(p, 10);
-		else if ((tag == 'H' || tag == 'h') && *p >= '0' && *p <= '9')
-			highDma = true;
-		while (*p && *p != ' ')
-			p++;
-	}
+	const DosBlaster card = dosParseBlaster(blaster);
+	base = card.base;
+	const unsigned type = card.type;
+	const bool highDma = card.hdma >= 0;
 
 	if (!base)
 		return kDosCdNoMixer;

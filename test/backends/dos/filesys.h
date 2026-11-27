@@ -30,6 +30,17 @@ public:
 		#endif
 	}
 
+	void test_names_that_need_a_short_form() {
+		TS_ASSERT(dosNeedsShortName("translations.dat"));
+		TS_ASSERT(dosNeedsShortName("bladerunner-win.000"));
+		TS_ASSERT(dosNeedsShortName("file.html"));         // the extension is too long
+		TS_ASSERT(dosNeedsShortName("noextension"));
+		TS_ASSERT(!dosNeedsShortName("kyra.dat"));
+		TS_ASSERT(!dosNeedsShortName("12345678.123"));
+		TS_ASSERT(!dosNeedsShortName("short"));
+		TS_ASSERT(!dosNeedsShortName(""));
+	}
+
 	void test_a_long_name_finds_the_8_3_file() {
 		if (_dir.empty())
 			return;
@@ -206,6 +217,31 @@ public:
 
 		TS_ASSERT(saves.removeSavefile("bladerunner-win.003"));
 		TS_ASSERT(!saves.exists("bladerunner-win.003"));
+		#endif
+	}
+
+	void test_saves_already_in_the_current_folder_are_listed() {
+		// The DOS port has no default save path: an empty one is the current folder. The first
+		// look at it has to list the folder, although "nothing cached yet" is an empty path too
+		#ifndef USE_CLOUD
+		if (_dir.empty())
+			return;
+		write("t7g.001", "SAVE"); // made by an earlier run
+		write("t7g.002", "SAVE");
+
+		const Common::String before = Common::change_current_directory(_dir);
+		TS_ASSERT(!before.empty());
+		if (before.empty())
+			return;
+		ConfMan.setPath("savepath", Common::Path(), Common::ConfigManager::kApplicationDomain);
+
+		DOSSaveFileManager saves(withoutLongNames);
+		Common::StringArray found = saves.listSavefiles("t7g.###");
+		const bool exists = saves.exists("t7g.002");
+		Common::change_current_directory(before);
+
+		TS_ASSERT_EQUALS(found.size(), 2u);
+		TS_ASSERT(exists);
 		#endif
 	}
 

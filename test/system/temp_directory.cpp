@@ -36,4 +36,12 @@ void Common::remove_temp_directory(const Common::String &path) {
 	rmdir(path.c_str());
 }
 
+Common::String Common::change_current_directory(const Common::String &path) {
+	char buffer[4096];
+	Common::String previous(getcwd(buffer, sizeof(buffer)) ? buffer : "");
+	if (chdir(path.c_str()) != 0)
+		return Common::String();
+	return previous;
+}
+
 #endif

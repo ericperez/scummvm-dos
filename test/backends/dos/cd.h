@@ -229,6 +229,18 @@ public:
 		TS_ASSERT_EQUALS(dosCdGet16(request + 18), 9);
 	}
 
+	void test_request_header() {
+		uint8 request[kDosCdPlayRequestSize];
+		memset(request, 0xEE, sizeof(request));
+		dosCdFillHeader(request, 16, 0x84);
+		TS_ASSERT_EQUALS(request[0], 16);                        // the length of the whole request
+		TS_ASSERT_EQUALS(request[1], 0);                         // the subunit
+		TS_ASSERT_EQUALS(request[2], 0x84);                      // the command
+		for (int i = 3; i < 16; i++)                             // status and reserved, cleared
+			TS_ASSERT_EQUALS(request[i], 0);
+		TS_ASSERT_EQUALS(request[16], 0xEE);                     // past the length: left alone
+	}
+
 	void test_status_word() {
 		TS_ASSERT(!dosCdStatusFailed(0x0100));                   // done
 		TS_ASSERT(dosCdStatusFailed(0x8102));                    // error bit, "not ready"
@@ -261,6 +273,17 @@ public:
 
 		block[0] = 10;
 		TS_ASSERT(!dosCdParseDeviceStatus(block, status));       // the answer to a different question
+	}
+
+	void test_audio_status_question() {
+		uint8 block[kDosCdAudioStatusSize + 1];
+		memset(block, 0xEE, sizeof(block));
+		dosCdBuildAudioStatus(block);
+		TS_ASSERT_EQUALS(kDosCdAudioStatusSize, 11);
+		TS_ASSERT_EQUALS(block[0], 15);                          // IOCTL input 15: audio status
+		for (int i = 1; i < kDosCdAudioStatusSize; i++)
+			TS_ASSERT_EQUALS(block[i], 0);
+		TS_ASSERT_EQUALS(block[kDosCdAudioStatusSize], 0xEE);
 	}
 
 	void test_a_disc_has_music_unless_all_its_tracks_are_data() {

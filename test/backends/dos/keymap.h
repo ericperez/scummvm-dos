@@ -197,4 +197,28 @@ public:
 		TS_ASSERT_EQUALS(k.unicode, '<');
 		TS_ASSERT_EQUALS(k.keycode, Common::KEYCODE_LESS);
 	}
+
+	void test_keys_that_type_nothing() {
+		// Function keys F1 to F10, F11 and F12: the BIOS queues them with no character
+		for (uint8 scan = 0x3B; scan <= 0x44; scan++)
+			TS_ASSERT(dosKeyTypesNothing(scan, false));
+		TS_ASSERT(dosKeyTypesNothing(0x57, false));
+		TS_ASSERT(dosKeyTypesNothing(0x58, false));
+		// The gray keys (arrows, Insert, Home, ...), all but keypad Enter and keypad /
+		TS_ASSERT(dosKeyTypesNothing(0x48, true));
+		TS_ASSERT(dosKeyTypesNothing(0x53, true));
+		TS_ASSERT(dosKeyTypesNothing(0x1D, true));  // right Ctrl
+		TS_ASSERT(!dosKeyTypesNothing(0x1C, true));
+		TS_ASSERT(!dosKeyTypesNothing(0x35, true));
+	}
+
+	void test_keys_that_may_type() {
+		TS_ASSERT(!dosKeyTypesNothing(0x1E, false)); // A
+		TS_ASSERT(!dosKeyTypesNothing(0x39, false)); // Space
+		TS_ASSERT(!dosKeyTypesNothing(0x1C, false)); // Enter
+		TS_ASSERT(!dosKeyTypesNothing(0x48, false)); // keypad 8, with Num Lock on
+		TS_ASSERT(!dosKeyTypesNothing(0x3A, false)); // the keys just before and after the function keys
+		TS_ASSERT(!dosKeyTypesNothing(0x45, false));
+		TS_ASSERT(!dosKeyTypesNothing(0x56, false)); // the extra ISO key
+	}
 };

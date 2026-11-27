@@ -46,6 +46,8 @@
 #include "common/str.h"
 #include "common/textconsole.h"
 
+#include "backends/platform/dos/dos-blaster.h"
+
 // In dos.cpp: keeps the sound card fed while a long message goes out at MIDI speed
 void dosPumpAudio();
 
@@ -68,46 +70,20 @@ inline unsigned statusPort() {
 	return g_port + 1;
 }
 
-unsigned parseHex(const char *text) {
-	unsigned value = 0;
-	bool any = false;
-	for (; *text; ++text) {
-		int digit;
-		if (*text >= '0' && *text <= '9')
-			digit = *text - '0';
-		else if (*text >= 'a' && *text <= 'f')
-			digit = *text - 'a' + 10;
-		else if (*text >= 'A' && *text <= 'F')
-			digit = *text - 'A' + 10;
-		else
-			break;
-		value = value * 16 + digit;
-		any = true;
-	}
-	return any ? value : 0;
-}
-
 unsigned chooseBase() {
 	if (const char *env = getenv("SCUMMVM_DOS_MPU")) {
-		unsigned port = parseHex(env);
+		unsigned port = dosParseHex(env);
 		if (port)
 			return port;
 	}
 	if (ConfMan.hasKey("mpu_port")) {
-		unsigned port = parseHex(ConfMan.get("mpu_port").c_str());
+		unsigned port = dosParseHex(ConfMan.get("mpu_port").c_str());
 		if (port)
 			return port;
 	}
-	if (const char *blaster = getenv("BLASTER")) {
-		for (const char *p = blaster; *p; ++p) {
-			// A field is a letter followed by its value; fields are separated by spaces.
-			if ((*p == 'P' || *p == 'p') && (p == blaster || p[-1] == ' ')) {
-				unsigned port = parseHex(p + 1);
-				if (port)
-					return port;
-			}
-		}
-	}
+	const DosBlaster blaster = dosParseBlaster(getenv("BLASTER"));
+	if (blaster.mpu)
+		return blaster.mpu;
 	return 0x330;
 }
 

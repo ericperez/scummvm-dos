@@ -296,4 +296,47 @@ public:
 		for (int i = 3; i < 8; i++)
 			TS_ASSERT_EQUALS(line[i], 251);                      // white pixels give the white of the palette
 	}
+	void test_the_overlay_palette_spans_the_dac_range() {
+		uint8 r, g, b;
+		dosPalette332(0x00, r, g, b);
+		TS_ASSERT_EQUALS(r, 0);
+		TS_ASSERT_EQUALS(g, 0);
+		TS_ASSERT_EQUALS(b, 0);
+		dosPalette332(0xFF, r, g, b);                 // white: the DAC's 63 in each
+		TS_ASSERT_EQUALS(r, 63);
+		TS_ASSERT_EQUALS(g, 63);
+		TS_ASSERT_EQUALS(b, 63);
+		dosPalette332(0xE0, r, g, b);                 // red alone
+		TS_ASSERT_EQUALS(r, 63);
+		TS_ASSERT_EQUALS(g, 0);
+		TS_ASSERT_EQUALS(b, 0);
+		dosPalette332(0x1C, r, g, b);                 // green alone
+		TS_ASSERT_EQUALS(g, 63);
+		dosPalette332(0x03, r, g, b);                 // blue alone
+		TS_ASSERT_EQUALS(b, 63);
+		dosPalette332(0x49, r, g, b);                 // 2-2-1
+		TS_ASSERT_EQUALS(r, 18);
+		TS_ASSERT_EQUALS(g, 18);
+		TS_ASSERT_EQUALS(b, 21);
+	}
+
+	void test_colours_to_the_overlay_palette() {
+		TS_ASSERT_EQUALS(dosRgbTo332(0, 0, 0), 0x00);
+		TS_ASSERT_EQUALS(dosRgbTo332(255, 255, 255), 0xFF);
+		TS_ASSERT_EQUALS(dosRgbTo332(255, 0, 0), 0xE0);
+		TS_ASSERT_EQUALS(dosRgbTo332(0, 255, 0), 0x1C);
+		TS_ASSERT_EQUALS(dosRgbTo332(0, 0, 255), 0x03);
+		TS_ASSERT_EQUALS(dosRgbTo332(31, 31, 63), 0x00); // just below the first step of each
+		TS_ASSERT_EQUALS(dosRgbTo332(32, 32, 64), 0x25);
+	}
+
+	void test_each_overlay_colour_maps_back_to_its_own_index() {
+		// What the screenshot and the cursor do: a palette entry, widened to 8 bits, finds itself again
+		for (int i = 0; i < 256; i++) {
+			uint8 r, g, b;
+			dosPalette332(i, r, g, b);
+			TS_ASSERT_EQUALS(dosRgbTo332(r * 4, g * 4, b * 4), i);
+		}
+	}
+
 };

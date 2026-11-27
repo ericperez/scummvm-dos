@@ -28,29 +28,7 @@
 #include <sys/movedata.h>
 
 #include "backends/platform/dos/dos-vesa.h"
-
-// Fields of the VBE "mode information block" that we use
-struct VesaModeInfo {
-	uint16_t attributes;      ///< bit 0 supported, bit 4 graphics, bit 7 linear framebuffer
-	uint8_t windowAAttributes;
-	uint16_t granularityKB;
-	uint16_t windowSizeKB;
-	uint16_t windowASegment;
-	uint16_t pitch;
-	uint16_t xResolution;
-	uint16_t yResolution;
-	uint8_t bitsPerPixel;
-	uint8_t memoryModel;      ///< 4 = packed pixel (one byte per pixel at 8 bpp)
-	uint32_t physBase;        ///< linear framebuffer address (VBE 2.0)
-};
-
-static uint16_t rd16(const uint8_t *p) {
-	return p[0] | (p[1] << 8);
-}
-
-static uint32_t rd32(const uint8_t *p) {
-	return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
-}
+#include "backends/platform/dos/dos-vesainfo.h"
 
 // VBE calls pass data in DOS memory: DJGPP's transfer buffer, at __tb
 static void setTransferBuffer(__dpmi_regs &r) {
@@ -66,14 +44,7 @@ static bool vbeOk(const __dpmi_regs &r) {
 static int pagesFor(int pitch, int height, int limit) {
 	if (limit < 2)
 		return 1;
-	int kb = VesaDisplay::videoMemoryKB();
-	unsigned long page = (unsigned long)pitch * height;
-	if (kb <= 0 || page == 0)
-		return 1;
-	unsigned long n = (unsigned long)kb * 1024 / page;
-	if (n < 2)
-		return 1;
-	return n > (unsigned long)limit ? limit : (int)n;
+	return dosVesaPages(VesaDisplay::videoMemoryKB(), pitch, height, limit);
 }
 
 // VBE function 07h: the first scan line of the display. At the vertical
@@ -103,8 +74,6 @@ static bool getModeInfo(uint16_t mode, uint8_t *block /* 256 bytes */) {
 	return true;
 }
 
-static void parseModeInfo(const uint8_t *b, VesaModeInfo &mi);
-
 VesaDisplay::VesaDisplay() :
 	_active(false), _linear(false), _pageLimit(1), _pages(1), _drawPage(0), _showPage(0),
 	_width(0), _height(0), _pitch(0),
@@ -114,20 +83,6 @@ VesaDisplay::VesaDisplay() :
 
 VesaDisplay::~VesaDisplay() {
 	release();
-}
-
-static void parseModeInfo(const uint8_t *b, VesaModeInfo &mi) {
-	mi.attributes = rd16(b + 0x00);
-	mi.windowAAttributes = b[0x02];
-	mi.granularityKB = rd16(b + 0x04);
-	mi.windowSizeKB = rd16(b + 0x06);
-	mi.windowASegment = rd16(b + 0x08);
-	mi.pitch = rd16(b + 0x10);
-	mi.xResolution = rd16(b + 0x12);
-	mi.yResolution = rd16(b + 0x14);
-	mi.bitsPerPixel = b[0x19];
-	mi.memoryModel = b[0x1B];
-	mi.physBase = rd32(b + 0x28);
 }
 
 // The mode numbers to try: the card's own list plus the standard ones.
@@ -155,18 +110,17 @@ int VesaDisplay::readModeList(uint16_t *candidates, int maxCount, int *vbeVersio
 		return 0;
 
 	if (vbeVersion)
-		*vbeVersion = rd16(block + 4);
+		*vbeVersion = READ_LE_UINT16(block + 4);
 
 	// The list of mode numbers is a far pointer into DOS memory, ended by 0xFFFF
-	uint32_t modePtr = rd32(block + 14);
-	uint32_t modeList = ((modePtr >> 16) << 4) + (modePtr & 0xFFFF);
+	const uint32_t modeList = dosVesaRealPointer(READ_LE_UINT32(block + 14));
 
 	int count = 0;
 	if (modeList) {
 		for (; count < maxCount - 8; count++) {
 			uint8_t w[2];
 			dosmemget(modeList + count * 2, 2, w);
-			uint16_t m = rd16(w);
+			uint16_t m = READ_LE_UINT16(w);
 			if (m == 0xFFFF)
 				break;
 			candidates[count] = m;
@@ -201,7 +155,7 @@ int VesaDisplay::videoMemoryKB() {
 	dosmemget(__tb, sizeof(block), block);
 	if (memcmp(block, "VESA", 4) != 0)
 		return 0;
-	return rd16(block + 18) * 64;
+	return dosVesaMemoryKB(block);
 }
 
 int VesaDisplay::listModes(DosModeSize *out, int maxCount, int *vbeVersion) {
@@ -215,12 +169,10 @@ int VesaDisplay::listModes(DosModeSize *out, int maxCount, int *vbeVersion) {
 			continue;
 
 		VesaModeInfo mi;
-		parseModeInfo(mb, mi);
+		dosVesaParseModeInfo(mb, mi);
 
-		if (!(mi.attributes & 0x01) || !(mi.attributes & 0x10))
-			continue; // not supported, or text mode
-		if (mi.bitsPerPixel != 8 || mi.memoryModel != 4)
-			continue;
+		if (!dosVesaIs256ColourMode(mi))
+			continue; // not supported, a text mode, or not 256 colours
 
 		bool seen = false;
 		for (int j = 0; j < n; j++) {
@@ -270,15 +222,13 @@ bool VesaDisplay::findMode(int width, int height, bool wantLinear, uint16_t &mod
 			continue;
 
 		VesaModeInfo mi;
-		parseModeInfo(mb, mi);
+		dosVesaParseModeInfo(mb, mi);
 
-		if (!(mi.attributes & 0x01) || !(mi.attributes & 0x10))
-			continue; // not supported, or text mode
+		if (!dosVesaIs256ColourMode(mi))
+			continue; // not supported, a text mode, or not 256 colours
 		if (mi.xResolution != width || mi.yResolution != height)
 			continue;
-		if (mi.bitsPerPixel != 8 || mi.memoryModel != 4)
-			continue;
-		if (wantLinear && (!(mi.attributes & 0x80) || mi.physBase == 0))
+		if (wantLinear && !dosVesaHasLinearFramebuffer(mi))
 			continue;
 
 		mode = candidates[i];
@@ -462,10 +412,8 @@ void VesaDisplay::putRect(const uint8_t *src, int srcPitch, int x, int y, int w,
 		int left = w;
 
 		while (left > 0) {
-			unsigned bank = offset / _granularity;
-			unsigned inWindow = offset - (unsigned long)bank * _granularity;
-			unsigned room = _windowSize - inWindow;
-			unsigned n = (unsigned)left < room ? (unsigned)left : room;
+			unsigned bank, inWindow;
+			const unsigned n = dosVesaBankSpan(offset, left, _granularity, _windowSize, bank, inWindow);
 
 			switchBank(bank);
 			dosmemput(s, n, (_windowSegment << 4) + inWindow);
@@ -493,10 +441,8 @@ void VesaDisplay::readAll(uint8_t *dst) {
 		unsigned long offset = (unsigned long)line * _pitch;
 		int left = _width;
 		while (left > 0) {
-			unsigned bank = offset / _granularity;
-			unsigned inWindow = offset - (unsigned long)bank * _granularity;
-			unsigned room = _windowSize - inWindow;
-			unsigned n = (unsigned)left < room ? (unsigned)left : room;
+			unsigned bank, inWindow;
+			const unsigned n = dosVesaBankSpan(offset, left, _granularity, _windowSize, bank, inWindow);
 
 			switchBank(bank);
 			dosmemget((_windowSegment << 4) + inWindow, n, d);
@@ -510,37 +456,6 @@ void VesaDisplay::readAll(uint8_t *dst) {
 
 #ifdef USE_RGB_COLOR
 
-// The colour fields of a high colour mode, from its mode information block
-static bool directFields(const uint8_t *b, uint8_t bits,
-                         uint8_t &rs, uint8_t &rp, uint8_t &gs, uint8_t &gp, uint8_t &bs, uint8_t &bp) {
-	rs = b[0x1F];
-	rp = b[0x20];
-	gs = b[0x21];
-	gp = b[0x22];
-	bs = b[0x23];
-	bp = b[0x24];
-
-	if (!rs && !gs && !bs) {
-		// A BIOS that does not describe the fields: the usual layouts
-		if (bits == 16) {
-			rs = 5;
-			rp = 11;
-			gs = 6;
-			gp = 5;
-			bs = 5;
-			bp = 0;
-		} else {
-			rs = 5;
-			rp = 10;
-			gs = 5;
-			gp = 5;
-			bs = 5;
-			bp = 0;
-		}
-	}
-	return rs >= 5 && gs >= 5 && bs >= 5 && rs <= 8 && gs <= 8 && bs <= 8;
-}
-
 int VesaDisplay::listDirectModes(VesaDirectMode *out, int maxCount) {
 	uint16_t candidates[260];
 	int count = readModeList(candidates, 260, nullptr);
@@ -552,15 +467,13 @@ int VesaDisplay::listDirectModes(VesaDirectMode *out, int maxCount) {
 			continue;
 
 		VesaModeInfo mi;
-		parseModeInfo(mb, mi);
+		dosVesaParseModeInfo(mb, mi);
 
-		if (!(mi.attributes & 0x01) || !(mi.attributes & 0x10))
-			continue; // not supported, or text mode
-		if (mi.memoryModel != 6 || (mi.bitsPerPixel != 15 && mi.bitsPerPixel != 16))
-			continue; // not direct colour at two bytes a pixel
+		if (!dosVesaIsHighColourMode(mi))
+			continue; // not supported, a text mode, or not direct colour at two bytes a pixel
 
 		uint8_t rs, rp, gs, gp, bs, bp;
-		if (!directFields(mb, mi.bitsPerPixel, rs, rp, gs, gp, bs, bp))
+		if (!dosVesaDirectFields(mb, mi.bitsPerPixel, rs, rp, gs, gp, bs, bp))
 			continue;
 
 		bool seen = false;
@@ -582,7 +495,7 @@ int VesaDisplay::listDirectModes(VesaDirectMode *out, int maxCount) {
 		m.greenPos = gp;
 		m.blueSize = bs;
 		m.bluePos = bp;
-		m.linear = (mi.attributes & 0x80) && mi.physBase != 0;
+		m.linear = dosVesaHasLinearFramebuffer(mi);
 	}
 	return n;
 }
@@ -608,18 +521,16 @@ bool VesaDisplay::setDirectMode(int width, int height, int bpp, int redPos, bool
 				continue;
 
 			VesaModeInfo m;
-			parseModeInfo(mb, m);
-			if (!(m.attributes & 0x01) || !(m.attributes & 0x10))
-				continue;
-			if (m.memoryModel != 6 || m.bitsPerPixel != bpp)
+			dosVesaParseModeInfo(mb, m);
+			if (!dosVesaIsHighColourMode(m) || m.bitsPerPixel != bpp)
 				continue;
 			if (m.xResolution != width || m.yResolution != height)
 				continue;
 
 			uint8_t rs, rp, gs, gp, bs, bp;
-			if (!directFields(mb, m.bitsPerPixel, rs, rp, gs, gp, bs, bp) || rp != redPos)
+			if (!dosVesaDirectFields(mb, m.bitsPerPixel, rs, rp, gs, gp, bs, bp) || rp != redPos)
 				continue;
-			if (wantLinear && (!(m.attributes & 0x80) || m.physBase == 0))
+			if (wantLinear && !dosVesaHasLinearFramebuffer(m))
 				continue;
 
 			mode = candidates[i];
@@ -703,10 +614,8 @@ void VesaDisplay::readAll16(uint8_t *dst) {
 		unsigned long offset = (unsigned long)line * _pitch;
 		int left = rowBytes;
 		while (left > 0) {
-			unsigned bank = offset / _granularity;
-			unsigned inWindow = offset - (unsigned long)bank * _granularity;
-			unsigned room = _windowSize - inWindow;
-			unsigned n = (unsigned)left < room ? (unsigned)left : room;
+			unsigned bank, inWindow;
+			const unsigned n = dosVesaBankSpan(offset, left, _granularity, _windowSize, bank, inWindow);
 
 			switchBank(bank);
 			dosmemget((_windowSegment << 4) + inWindow, n, d);

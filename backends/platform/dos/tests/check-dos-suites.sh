@@ -17,6 +17,9 @@ netparse.h DosNetParseTestSuite  8 dos-netparse.h
 joystick.h DosJoystickTestSuite 10 dos-joystick.h
 filesys.h  DosFileSysTestSuite  10 dos-filesys.h
 banner.h   DosBannerTestSuite   10 dos-banner.h
+scancodes.h DosScanCodesTestSuite 20 dos-scancodes.h
+blaster.h  DosBlasterTestSuite  12 dos-blaster.h
+vesa.h     DosVesaTestSuite     12 dos-vesainfo.h
 "
 
 grep -q 'test/backends/dos/\*\.h' "$SRC/test/module.mk" || fail "test/module.mk does not list test/backends/dos/*.h"
@@ -33,6 +36,7 @@ done || exit 1
 
 echo "$SUITES" | {
   TOTAL=0
+  SUITE_COUNT=0
   while read -r file suite least header; do
     [ -n "$file" ] || continue
     COUNT=$(echo "$ALL" | grep -c "^$suite ")
@@ -43,6 +47,7 @@ echo "$SUITES" | {
       *) echo "DOS SUITES FAILED: $suite does not pass"; echo "$OUT" | tail -8; exit 1 ;;
     esac
     TOTAL=$((TOTAL + COUNT))
+    SUITE_COUNT=$((SUITE_COUNT + 1))
   done
-  echo "DOS SUITES OK ($TOTAL tests in 9 suites)"
+  echo "DOS SUITES OK ($TOTAL tests in $SUITE_COUNT suites)"
 }

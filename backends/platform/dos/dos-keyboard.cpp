@@ -32,6 +32,7 @@
 
 #include "backends/platform/dos/dos-bioskey.h"
 #include "backends/platform/dos/dos-keyboard.h"
+#include "backends/platform/dos/dos-scancodes.h"
 
 // The interrupt side: runs inside IRQ 1, so only locked memory and no library calls
 
@@ -53,8 +54,8 @@ static _go32_dpmi_seginfo g_newHandler;
 static bool g_installed = false;
 static bool g_exitHandlerSet = false;
 
-// Lock keys that are on (kDosModCaps | kDosModNum | kDosModScroll)
-static uint8_t g_locks = 0;
+// What the decoder knows of the keys (all zero: none down); see dos-scancodes.h
+static DosScanState g_scan;
 
 static void removeAtExit() {
 	dosKeyboardRemove();
@@ -79,14 +80,7 @@ bool dosKeyboardInstall() {
 	g_head = g_tail = 0;
 
 	// Start from the lock keys' real state (Num Lock is usually on at boot)
-	int bios = bioskey(0x12);
-	g_locks = 0;
-	if (bios & 0x40)
-		g_locks |= kDosModCaps;
-	if (bios & 0x20)
-		g_locks |= kDosModNum;
-	if (bios & 0x10)
-		g_locks |= kDosModScroll;
+	g_scan.locks = dosLocksFromBiosFlags(bioskey(0x12));
 
 	memset(&g_newHandler, 0, sizeof(g_newHandler));
 	g_newHandler.pm_offset = (unsigned long)keyboardIrqHandler;
@@ -133,29 +127,7 @@ bool dosKeyboardStuffBiosKey(uint16_t word) {
 
 // The decoding side, run from the main program
 
-// Modifier keys held right now (left and right tracked apart)
-enum {
-	kLShift = 1 << 0, kRShift = 1 << 1,
-	kLCtrl = 1 << 2, kRCtrl = 1 << 3,
-	kLAlt = 1 << 4, kRAlt = 1 << 5
-};
-
-static uint8_t g_held = 0;
-static bool g_down[2][128];          ///< [extended][scan code]
-static bool g_extPrefix = false;
-static int g_skip = 0;               ///< bytes of the Pause sequence still to ignore
 static bool g_needBiosDrain = false;
-
-static uint8_t currentModifiers() {
-	uint8_t m = g_locks;
-	if (g_held & (kLShift | kRShift))
-		m |= kDosModShift;
-	if (g_held & (kLCtrl | kRCtrl))
-		m |= kDosModCtrl;
-	if (g_held & (kLAlt | kRAlt))
-		m |= kDosModAlt;
-	return m;
-}
 
 static void drainBiosBuffer() {
 	// The BIOS saw every key too (we chain to it) and queued it; nobody
@@ -166,80 +138,15 @@ static void drainBiosBuffer() {
 
 bool dosKeyboardNext(DosKeyEvent &ev) {
 	while (g_tail != g_head) {
-		uint8_t b = g_ring[g_tail++];
-
-		if (g_skip) {
-			// The rest of Pause's six-byte sequence
-			g_skip--;
+		if (!dosScanDecode(g_scan, g_ring[g_tail++], ev))
 			continue;
-		}
-		if (b == 0xE1) {
-			g_skip = 5;
-			continue;
-		}
-		if (b == 0xE0) {
-			g_extPrefix = true;
-			continue;
-		}
-
-		bool extended = g_extPrefix;
-		g_extPrefix = false;
-
-		uint8_t scan = b & 0x7F;
-		bool pressed = !(b & 0x80);
-
-		// Print Screen and a few others send "fake" Shift presses around
-		// the real key; they are not the user pressing Shift.
-		if (extended && (scan == 0x2A || scan == 0x36))
-			continue;
-
-		bool repeat = false;
-		bool wasDown = g_down[extended][scan];
-		if (pressed) {
-			repeat = wasDown;
-			g_down[extended][scan] = true;
-			g_needBiosDrain = true;
-		} else {
-			g_down[extended][scan] = false;
-		}
-
-		// Modifier and lock keys
-		uint8_t bit = 0;
-		if (!extended && scan == 0x2A) bit = kLShift;
-		else if (!extended && scan == 0x36) bit = kRShift;
-		else if (!extended && scan == 0x1D) bit = kLCtrl;
-		else if (extended && scan == 0x1D) bit = kRCtrl;
-		else if (!extended && scan == 0x38) bit = kLAlt;
-		else if (extended && scan == 0x38) bit = kRAlt;   // AltGr counts as Alt
-		if (bit) {
-			if (pressed)
-				g_held |= bit;
-			else
-				g_held &= ~bit;
-		}
-
-		if (pressed && !repeat && !extended) {
-			if (scan == 0x3A)
-				g_locks ^= kDosModCaps;
-			else if (scan == 0x45)
-				g_locks ^= kDosModNum;
-			else if (scan == 0x46)
-				g_locks ^= kDosModScroll;
-		}
-
-		ev.scan = scan;
-		ev.extended = extended;
-		ev.pressed = pressed;
-		ev.repeat = repeat;
-		ev.modifiers = currentModifiers();
-		ev.rightAltOnly = (g_held & kRAlt) && !(g_held & kLAlt);
 
 		// The character is the word at the front of the BIOS buffer, if it is this key's
 		// (KEYB's layout; dead keys and Alt+letter type nothing and leave no word)
-		ev.ascii = 0;
-		if (pressed) {
+		if (ev.pressed) {
+			g_needBiosDrain = true;
 			const unsigned word = (unsigned)bioskey(0x11); // looks, does not take
-			if (dosBiosWordMatches((uint16_t)word, scan, extended)) {
+			if (dosBiosWordMatches((uint16_t)word, ev.scan, ev.extended)) {
 				bioskey(0x10); // now take it
 				ev.ascii = (uint8_t)(word & 0xFF);
 			}

@@ -151,4 +151,24 @@ static inline void dosDitherRowReference(uint8_t *d, const uint16_t *s, int x0, 
 	}
 }
 
+// The fixed 3-3-2 palette shown while the overlay (the launcher, the menus) is visible: an index
+// holds 3 bits of red, 3 of green and 2 of blue
+
+/** The closest 3-3-2 palette index of an 8-bit-per-component colour. */
+static inline uint8_t dosRgbTo332(uint8_t r, uint8_t g, uint8_t b) {
+	return (uint8_t)(((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6));
+}
+
+/**
+ * The colour of a 3-3-2 palette index, as the VGA DAC takes it (6 bits a component).
+ *
+ * @param index    the palette index
+ * @param r, g, b  set to 0..63
+ */
+static inline void dosPalette332(int index, uint8_t &r, uint8_t &g, uint8_t &b) {
+	r = (uint8_t)(((index >> 5) & 7) * 9);  // 3 bits -> 0..63
+	g = (uint8_t)(((index >> 2) & 7) * 9);
+	b = (uint8_t)((index & 3) * 21);        // 2 bits -> 0..63
+}
+
 #endif

@@ -36,6 +36,7 @@
 #include "backends/platform/dos/dos-joystick.h"
 #include "backends/platform/dos/dos-keyboard.h"
 #include "backends/platform/dos/dos-keymap.h"
+#include "backends/platform/dos/dos-scancodes.h"
 
 static bool g_mouseAvailable = false;
 
@@ -291,262 +292,16 @@ void dosJoystickUpdate(uint32 nowMs, int &buttons) {
 		dosMouseSetPosition(CLIP(g_lastX + moves[0], 0, g_screenW - 1), CLIP(g_lastY + moves[1], 0, g_screenH - 1));
 }
 
-/** Keycode for the extended (scancode only) keys, or KEYCODE_INVALID. */
-static Common::KeyCode extendedKey(int scan) {
-	switch (scan) {
-	case 0x48:
-		return Common::KEYCODE_UP;
-	case 0x50:
-		return Common::KEYCODE_DOWN;
-	case 0x4B:
-		return Common::KEYCODE_LEFT;
-	case 0x4D:
-		return Common::KEYCODE_RIGHT;
-	case 0x47:
-		return Common::KEYCODE_HOME;
-	case 0x4F:
-		return Common::KEYCODE_END;
-	case 0x49:
-		return Common::KEYCODE_PAGEUP;
-	case 0x51:
-		return Common::KEYCODE_PAGEDOWN;
-	case 0x52:
-		return Common::KEYCODE_INSERT;
-	case 0x53:
-		return Common::KEYCODE_DELETE;
-	case 0x85:
-		return Common::KEYCODE_F11;
-	case 0x86:
-		return Common::KEYCODE_F12;
-	default:
-		break;
-	}
-
-	// F1..F10 are 0x3B..0x44
-	if (scan >= 0x3B && scan <= 0x44)
-		return (Common::KeyCode)(Common::KEYCODE_F1 + (scan - 0x3B));
-
-	return Common::KEYCODE_INVALID;
-}
-
-/** Letter for a QWERTY scancode, used for Alt+letter combos. 0 if none. */
-static char letterForScancode(int scan) {
-	static const char row1[] = "qwertyuiop"; // 0x10..0x19
-	static const char row2[] = "asdfghjkl";  // 0x1E..0x26
-	static const char row3[] = "zxcvbnm";    // 0x2C..0x32
-
-	if (scan >= 0x10 && scan <= 0x19)
-		return row1[scan - 0x10];
-	if (scan >= 0x1E && scan <= 0x26)
-		return row2[scan - 0x1E];
-	if (scan >= 0x2C && scan <= 0x32)
-		return row3[scan - 0x2C];
-	return 0;
-}
-
 // The BIOS fallback: presses only, no releases (see dosKeyboardNextKey())
 static bool biosKeyboardPoll(Common::KeyState &ks) {
 	// 0x11 = "enhanced keyboard: is a key waiting?", 0x10 = read it
 	if (!bioskey(0x11))
 		return false;
 
-	int key = bioskey(0x10);
-	int shift = bioskey(0x12);
-	int scan = (key >> 8) & 0xFF;
-	int ascii = key & 0xFF;
-
-	uint8 flags = 0;
-	if (shift & 0x03)
-		flags |= Common::KBD_SHIFT;
-	if (shift & 0x04)
-		flags |= Common::KBD_CTRL;
-	if (shift & 0x08)
-		flags |= Common::KBD_ALT;
-
-	Common::KeyCode kc = Common::KEYCODE_INVALID;
-	int outAscii = 0;
-
-	if (ascii == 0 || (ascii == 0xE0 && scan >= 0x47)) {
-		// Extended key: arrows, function keys, Alt+letter, ...
-		kc = extendedKey(scan);
-		if (kc == Common::KEYCODE_INVALID) {
-			char c = letterForScancode(scan);
-			if (c) {
-				kc = (Common::KeyCode)c;
-				flags |= Common::KBD_ALT;
-			}
-		}
-	} else if (ascii == 8) {
-		kc = Common::KEYCODE_BACKSPACE;
-		outAscii = 8;
-	} else if (ascii == 9) {
-		kc = Common::KEYCODE_TAB;
-		outAscii = 9;
-	} else if (ascii == 13) {
-		kc = Common::KEYCODE_RETURN;
-		outAscii = 13;
-	} else if (ascii == 27) {
-		kc = Common::KEYCODE_ESCAPE;
-		outAscii = 27;
-	} else if (ascii >= 1 && ascii <= 26) {
-		// Ctrl+A .. Ctrl+Z
-		kc = (Common::KeyCode)('a' + ascii - 1);
-		flags |= Common::KBD_CTRL;
-	} else if (ascii >= 128) {
-		// A character of the layout that ASCII has not: the code page says which
-		outAscii = dosCharToUnicode(g_codePage, (uint8)ascii);
-	} else if (ascii >= 32 && ascii < 127) {
-		outAscii = ascii;
-		// Letters use the lower case keycode; the shift flag and the ASCII
-		// value carry the case, as in the other backends.
-		if (ascii >= 'A' && ascii <= 'Z')
-			kc = (Common::KeyCode)(ascii - 'A' + 'a');
-		else
-			kc = (Common::KeyCode)ascii;
-	}
-
-	if (kc == Common::KEYCODE_INVALID && outAscii == 0)
-		return false; // consumed a key we do not map; report nothing
-
-	ks.keycode = kc;
-	ks.ascii = outAscii;
-	ks.flags = flags;
-	return true;
-}
-
-// Scan codes (IRQ 1) to ScummVM key events
-
-// Typewriter keys' keycodes: the ASCII of what they type unshifted, by scan code (0: none)
-static const uint8 kTypewriterKeys[0x36] = {
-	0, 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 0, 0,
-	'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, 0, 'a', 's',
-	'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\', 'z', 'x', 'c', 'v',
-	'b', 'n', 'm', ',', '.', '/'
-};
-
-static Common::KeyCode keycodeForScan(uint8 scan, bool extended) {
-	if (extended) {
-		switch (scan) {
-		case 0x1C:
-			return Common::KEYCODE_KP_ENTER;
-		case 0x1D:
-			return Common::KEYCODE_RCTRL;
-		case 0x35:
-			return Common::KEYCODE_KP_DIVIDE;
-		case 0x37:
-			return Common::KEYCODE_PRINT;
-		case 0x38:
-			return Common::KEYCODE_RALT;
-		case 0x47:
-			return Common::KEYCODE_HOME;
-		case 0x48:
-			return Common::KEYCODE_UP;
-		case 0x49:
-			return Common::KEYCODE_PAGEUP;
-		case 0x4B:
-			return Common::KEYCODE_LEFT;
-		case 0x4D:
-			return Common::KEYCODE_RIGHT;
-		case 0x4F:
-			return Common::KEYCODE_END;
-		case 0x50:
-			return Common::KEYCODE_DOWN;
-		case 0x51:
-			return Common::KEYCODE_PAGEDOWN;
-		case 0x52:
-			return Common::KEYCODE_INSERT;
-		case 0x53:
-			return Common::KEYCODE_DELETE;
-		default:
-			return Common::KEYCODE_INVALID;
-		}
-	}
-
-	switch (scan) {
-	case 0x01:
-		return Common::KEYCODE_ESCAPE;
-	case 0x0E:
-		return Common::KEYCODE_BACKSPACE;
-	case 0x0F:
-		return Common::KEYCODE_TAB;
-	case 0x1C:
-		return Common::KEYCODE_RETURN;
-	case 0x1D:
-		return Common::KEYCODE_LCTRL;
-	case 0x2A:
-		return Common::KEYCODE_LSHIFT;
-	case 0x36:
-		return Common::KEYCODE_RSHIFT;
-	case 0x37:
-		return Common::KEYCODE_KP_MULTIPLY;
-	case 0x38:
-		return Common::KEYCODE_LALT;
-	case 0x39:
-		return Common::KEYCODE_SPACE;
-	case 0x3A:
-		return Common::KEYCODE_CAPSLOCK;
-	case 0x45:
-		return Common::KEYCODE_NUMLOCK;
-	case 0x46:
-		return Common::KEYCODE_SCROLLOCK;
-	case 0x47:
-		return Common::KEYCODE_KP7;
-	case 0x48:
-		return Common::KEYCODE_KP8;
-	case 0x49:
-		return Common::KEYCODE_KP9;
-	case 0x4A:
-		return Common::KEYCODE_KP_MINUS;
-	case 0x4B:
-		return Common::KEYCODE_KP4;
-	case 0x4C:
-		return Common::KEYCODE_KP5;
-	case 0x4D:
-		return Common::KEYCODE_KP6;
-	case 0x4E:
-		return Common::KEYCODE_KP_PLUS;
-	case 0x4F:
-		return Common::KEYCODE_KP1;
-	case 0x50:
-		return Common::KEYCODE_KP2;
-	case 0x51:
-		return Common::KEYCODE_KP3;
-	case 0x52:
-		return Common::KEYCODE_KP0;
-	case 0x53:
-		return Common::KEYCODE_KP_PERIOD;
-	case 0x57:
-		return Common::KEYCODE_F11;
-	case 0x58:
-		return Common::KEYCODE_F12;
-	default:
-		break;
-	}
-
-	if (scan >= 0x3B && scan <= 0x44)
-		return (Common::KeyCode)(Common::KEYCODE_F1 + (scan - 0x3B));
-
-	if (scan < sizeof(kTypewriterKeys) && kTypewriterKeys[scan])
-		return (Common::KeyCode)kTypewriterKeys[scan];
-
-	return Common::KEYCODE_INVALID;
-}
-
-static uint8 flagsForModifiers(uint8 mods) {
-	uint8 flags = 0;
-	if (mods & kDosModShift)
-		flags |= Common::KBD_SHIFT;
-	if (mods & kDosModCtrl)
-		flags |= Common::KBD_CTRL;
-	if (mods & kDosModAlt)
-		flags |= Common::KBD_ALT;
-	if (mods & kDosModCaps)
-		flags |= Common::KBD_CAPS;
-	if (mods & kDosModNum)
-		flags |= Common::KBD_NUM;
-	if (mods & kDosModScroll)
-		flags |= Common::KBD_SCRL;
-	return flags;
+	const int key = bioskey(0x10);
+	const int shift = bioskey(0x12);
+	// A key we do not map is consumed and reported as nothing
+	return dosBiosKeyState(key, shift, g_codePage, ks);
 }
 
 // Each key as reported when it went down, for its release (Shift or the layout may change)
@@ -582,7 +337,7 @@ bool dosKeyboardNextKey(DosKey &key) {
 	if (dosKeyboardInstalled()) {
 		DosKeyEvent e;
 		while (dosKeyboardNext(e)) {
-			const Common::KeyCode physical = keycodeForScan(e.scan, e.extended);
+			const Common::KeyCode physical = dosKeycodeForScan(e.scan, e.extended);
 			uint8 mods = e.modifiers;
 			Common::KeyCode kc = physical;
 			uint16 unicode = 0;
@@ -612,7 +367,7 @@ bool dosKeyboardNextKey(DosKey &key) {
 
 			key.state.keycode = kc;
 			key.state.ascii = unicode;
-			key.state.flags = flagsForModifiers(mods);
+			key.state.flags = dosFlagsForModifiers(mods);
 			key.pressed = e.pressed;
 			key.repeat = e.repeat;
 			return true;

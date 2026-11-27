@@ -1,9 +1,9 @@
 #!/bin/sh
 # Run `make test` in the host tree (ScummVM's unit tests and the DOS suites). Prints "MAKE TEST OK <n> tests"
-# if it ended in OK! after at least MIN_TESTS tests (default 561). The output is in $HOST/maketest.log.
+# if it ended in OK! after at least MIN_TESTS tests (default 654). The output is in $HOST/maketest.log.
 . "$(dirname "$0")/common.sh"
 
-MIN_TESTS=${MIN_TESTS:-561}
+MIN_TESTS=${MIN_TESTS:-654}
 host_path
 
 LOG=$HOST/maketest.log

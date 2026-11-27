@@ -22,7 +22,6 @@
 // This file talks directly to the Sound Blaster, the DMA controller and the PIC
 #define FORBIDDEN_SYMBOL_ALLOW_ALL
 
-#include <ctype.h>
 #include <dos.h>
 #include <dpmi.h>
 #include <go32.h>
@@ -33,6 +32,7 @@
 #include <sys/movedata.h>
 #include <time.h>
 
+#include "backends/platform/dos/dos-blaster.h"
 #include "backends/platform/dos/dos-sb.h"
 
 static SoundBlaster *g_active = nullptr;
@@ -301,14 +301,8 @@ void SoundBlaster::programDma(int channel, unsigned ringBytes) {
 // 8-bit unsigned mono, DSP 2.00 or later (the original auto-init commands).
 bool SoundBlaster::start8(int channel, unsigned requestedRate) {
 	// The DSP rate is 1000000 / (256 - timeConstant), at most 22222 Hz on an SB 2.0
-	if (requestedRate < 4000)
-		requestedRate = 4000;
-	unsigned divisor = (1000000 + requestedRate / 2) / requestedRate;
-	if (divisor < 45)
-		divisor = 45;
-	if (divisor > 250)
-		divisor = 250;
-	const uint8_t timeConstant = (uint8_t)(256 - divisor);
+	unsigned rate;
+	const uint8_t timeConstant = dosSbTimeConstant(requestedRate, rate);
 
 	_bits16 = false;
 	if (!placeRing(k8BitRingBytes, 0x10000))
@@ -320,7 +314,7 @@ bool SoundBlaster::start8(int channel, unsigned requestedRate) {
 	programDma(channel, _ringBytes);
 	_activeChannel = channel;
 	_dma = channel;
-	_rate = 1000000 / divisor;
+	_rate = rate;
 
 	const unsigned block = _ringBytes / kBlocks - 1; // the card interrupts after each block
 	bool ok = dspWrite(0xD1);                        // speaker on
@@ -335,11 +329,7 @@ bool SoundBlaster::start8(int channel, unsigned requestedRate) {
 
 // SB16 (DSP 4.xx): 16-bit signed stereo on a 16-bit DMA channel.
 bool SoundBlaster::start16(unsigned requestedRate) {
-	unsigned rate = requestedRate;
-	if (rate < 5000)
-		rate = 5000;
-	if (rate > 44100)
-		rate = 44100;
+	const unsigned rate = dosSb16Rate(requestedRate);
 
 	_bits16 = true;
 	if (!placeRing(k16BitRingBytes, 0x20000))
@@ -508,48 +498,12 @@ bool SoundBlaster::init(unsigned requestedRate, int bits, bool useIrq) {
 
 	_error[0] = 0;
 
-	// Defaults, overridden by e.g. BLASTER=A220 I7 D1 H5 T6
-	unsigned base = 0;
-	_irq = -1;
-	_dma = -1;
-	_hdma = -1;
-
-	const char *env = getenv("BLASTER");
-	if (env) {
-		const char *p = env;
-		while (*p) {
-			while (*p == ' ')
-				p++;
-			if (!*p)
-				break;
-
-			char tag = toupper((unsigned char)*p++);
-			char *end;
-			unsigned long v;
-			switch (tag) {
-			case 'A':
-				v = strtoul(p, &end, 16);
-				base = (unsigned)v;
-				break;
-			case 'I':
-				v = strtoul(p, &end, 10);
-				_irq = (int)v;
-				break;
-			case 'D':
-				v = strtoul(p, &end, 10);
-				_dma = (int)v;
-				break;
-			case 'H':
-				v = strtoul(p, &end, 10);
-				_hdma = (int)v;
-				break;
-			default:
-				break;
-			}
-			while (*p && *p != ' ')
-				p++;
-		}
-	}
+	// The card's settings, from e.g. BLASTER=A220 I7 D1 H5 T6 (those not given: none)
+	const DosBlaster blaster = dosParseBlaster(getenv("BLASTER"));
+	const unsigned base = blaster.base;
+	_irq = blaster.irq;
+	_dma = blaster.dma;
+	_hdma = blaster.hdma;
 
 	bool found = false;
 	if (base)

@@ -51,11 +51,6 @@ static void restoreTextModeAtExit() {
 		g_instance->restoreTextMode();
 }
 
-/** Closest 3-3-2 palette index for an 8-bit-per-component colour. */
-static inline byte rgbTo332(byte r, byte g, byte b) {
-	return ((r >> 5) << 5) | ((g >> 5) << 2) | (b >> 6);
-}
-
 DOSGraphicsManager::DOSGraphicsManager() :
 	_modeSet(false),
 	_screenChangeID(0),
@@ -447,9 +442,11 @@ void DOSGraphicsManager::writeDAC(const byte *rgb8, uint start, uint num) {
 void DOSGraphicsManager::writeOverlayDAC() {
 	outportb(0x3C8, 0);
 	for (int i = 0; i < 256; i++) {
-		outportb(0x3C9, ((i >> 5) & 7) * 9);  // 3 bits -> 0..63
-		outportb(0x3C9, ((i >> 2) & 7) * 9);
-		outportb(0x3C9, (i & 3) * 21);        // 2 bits -> 0..63
+		uint8 r, g, b;
+		dosPalette332(i, r, g, b);
+		outportb(0x3C9, r);
+		outportb(0x3C9, g);
+		outportb(0x3C9, b);
 	}
 }
 
@@ -833,7 +830,7 @@ void DOSGraphicsManager::rebuildCursorMap() {
 		// Everything on screen is 3-3-2 now
 		const byte *pal = _cursorPaletteEnabled ? _cursorPalette : _palette;
 		for (int i = 0; i < 256; i++)
-			_cursorMap[i] = rgbTo332(pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2]);
+			_cursorMap[i] = dosRgbTo332(pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2]);
 	}
 	#ifdef USE_RGB_COLOR
 	else if (_dither) {
@@ -1407,9 +1404,10 @@ void DOSGraphicsManager::saveScreenshot() {
 	for (int i = 0; i < 256; i++) {
 		uint8 r, g, b;
 		if (_overlayVisible) {
-			r = ((i >> 5) & 7) * 9 * 4;
-			g = ((i >> 2) & 7) * 9 * 4;
-			b = (i & 3) * 21 * 4;
+			dosPalette332(i, r, g, b);
+			r *= 4;
+			g *= 4;
+			b *= 4;
 			#ifdef USE_RGB_COLOR
 		} else if (_dither) {
 			r = cube[i][0] & 0xFC;
