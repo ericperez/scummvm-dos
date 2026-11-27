@@ -28,6 +28,7 @@
 // The banner shown until a game draws, in the 8x8 BIOS font; no DOS calls, so unit tested
 // on the host
 
+/** Where the banner's text goes on a screen, and how much of it fits */
 struct DosBannerLayout {
 	int scale;    ///< screen pixels for one pixel of the 8x8 font
 	int margin;   ///< from the top left corner of the screen

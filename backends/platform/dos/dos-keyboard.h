@@ -41,6 +41,7 @@ enum {
 	kDosModScroll = 1 << 5    ///< Scroll Lock is on
 };
 
+/** A key going down or up, as dosKeyboardNext() reports it */
 struct DosKeyEvent {
 	uint8_t scan;        ///< Scan code (set 1) of the key, without the release bit
 	bool extended;       ///< The key's codes are prefixed by 0xE0 (arrows, right Ctrl, ...)

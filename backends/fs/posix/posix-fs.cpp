@@ -193,7 +193,7 @@ bool POSIXFilesystemNode::getChildren(AbstractFSList &myList, ListMode mode, boo
 		for (int drive = 1; drive <= 26; drive++) {
 			struct dfree df;
 			getdfree(drive, &df);
-			if (df.df_sclus == 0xFFFF)	// Not a valid drive
+			if (df.df_sclus == 0xFFFF)  // Not a valid drive
 				continue;
 
 			char driveRoot[] = "A:/";

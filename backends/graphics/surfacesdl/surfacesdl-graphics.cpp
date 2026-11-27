@@ -1245,7 +1245,11 @@ bool SurfaceSdlGraphicsManager::hotswapGFXMode() {
 bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight);
 bool dosBannerDraw(SDL_Surface *surface);
 bool dosBannerClear();
-// Remove the banner, clearing the window's surface around a smaller screen. True if there was one.
+/**
+ * Remove the banner, clearing the window's surface around a smaller screen.
+ *
+ * @return true if there was a banner
+ */
 static bool dosBannerErase(SdlWindow *window) {
 	if (!dosBannerClear())
 		return false;

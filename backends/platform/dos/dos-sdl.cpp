@@ -125,8 +125,15 @@ static bool g_guiChosen = false, g_guiValid = false;
 static uint g_guiW = 0, g_guiH = 0;
 
 // What choosing it found: decided before the window opens, while the screen is in text mode, so warned
-// by dosLogStartup()
-static Common::StringArray g_guiNotes;
+// by dosLogStartup(). Made on first use: a global object would need a global constructor
+static Common::StringArray *g_guiNotes = nullptr;
+
+/** Keep a note for dosLogStartup() to warn. */
+static void addGuiNote(const Common::String &note) {
+	if (!g_guiNotes)
+		g_guiNotes = new Common::StringArray();
+	g_guiNotes->push_back(note);
+}
 
 /**
  * The launcher's resolution, picked as DOSGraphicsManager::chooseGuiMode() does (same settings), from the
@@ -155,7 +162,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 	int explicitW = 0, explicitH = 0;
 	const bool wantExplicit = setting != "auto" && dosParseSize(setting.c_str(), explicitW, explicitH);
 	if (setting != "auto" && !wantExplicit)
-		g_guiNotes.push_back(Common::String::format("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str()));
+		addGuiNote(Common::String::format("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str()));
 
 	int maxW = 1024, maxH = 768;
 	Common::String maxSetting;
@@ -164,7 +171,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 	if (const char *env = getenv("SCUMMVM_DOS_GUI_MAX"))
 		maxSetting = env;
 	if (!maxSetting.empty() && !dosParseSize(maxSetting.c_str(), maxW, maxH)) {
-		g_guiNotes.push_back(Common::String::format("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str()));
+		addGuiNote(Common::String::format("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str()));
 		maxW = 1024;
 		maxH = 768;
 	}
@@ -199,7 +206,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 				return true;
 			}
 		}
-		g_guiNotes.push_back(Common::String::format("DOSGFX: no %dx%d mode; choosing one", explicitW, explicitH));
+		addGuiNote(Common::String::format("DOSGFX: no %dx%d mode; choosing one", explicitW, explicitH));
 	}
 
 	// What the monitor says it is
@@ -218,19 +225,19 @@ bool dosGuiResolution(uint &width, uint &height) {
 		uint8 edid[128];
 		haveNative = VesaDisplay::readEdid(edid) && dosEdidSize(edid, nativeW, nativeH);
 		if (haveNative)
-			g_guiNotes.push_back(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
+			addGuiNote(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
 	}
 
 	DosModeSize best;
 	if (!dosChooseGuiMode(sizes, count, maxW, maxH, haveNative, nativeW, nativeH, best)) {
-		g_guiNotes.push_back(Common::String::format("DOSGFX: no RGB565 mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH));
+		addGuiNote(Common::String::format("DOSGFX: no RGB565 mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH));
 		return false;
 	}
 
 	g_guiW = best.w;
 	g_guiH = best.h;
 	g_guiValid = true;
-	g_guiNotes.push_back(Common::String::format("DOSGFX: menus use %dx%d (limit %dx%d)", g_guiW, g_guiH, maxW, maxH));
+	addGuiNote(Common::String::format("DOSGFX: menus use %dx%d (limit %dx%d)", g_guiW, g_guiH, maxW, maxH));
 	width = g_guiW;
 	height = g_guiH;
 	return true;
@@ -345,9 +352,12 @@ void dosPumpAudio() {
 
 // Called once the window is open (base/main.cpp): what start-up found goes to the log, not the text screen
 void dosLogStartup() {
-	for (uint i = 0; i < g_guiNotes.size(); i++)
-		warning("%s", g_guiNotes[i].c_str());
-	g_guiNotes.clear();
+	if (g_guiNotes) {
+		for (uint i = 0; i < g_guiNotes->size(); i++)
+			warning("%s", (*g_guiNotes)[i].c_str());
+		delete g_guiNotes;
+		g_guiNotes = nullptr;
+	}
 
 	#ifdef USE_SDL_NET
 	// Warns if there is no TCP/IP stack for the local web server

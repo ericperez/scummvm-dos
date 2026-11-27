@@ -26,10 +26,12 @@
 #ifndef BACKENDS_PLATFORM_DOS_CD_H
 #define BACKENDS_PLATFORM_DOS_CD_H
 
+#include "common/endian.h"
 #include "common/scummsys.h"
 
 #include "backends/platform/dos/dos-blaster.h"
 
+/** The units of a CD's time line */
 enum {
 	kDosCdFramesPerSecond = 75,
 	kDosCdFramesPerMinute = 75 * 60,
@@ -39,6 +41,7 @@ enum {
 
 // ---- Red Book addresses ----
 
+/** The Red Book address (minute, second and frame, frame in the lowest byte) of a frame count */
 inline uint32 dosCdFramesToRedBook(uint32 frames) {
 	const uint32 minute = frames / kDosCdFramesPerMinute;
 	const uint32 second = (frames / kDosCdFramesPerSecond) % 60;
@@ -46,6 +49,7 @@ inline uint32 dosCdFramesToRedBook(uint32 frames) {
 	return frame | (second << 8) | (minute << 16);
 }
 
+/** The frame count of a Red Book address */
 inline uint32 dosCdRedBookToFrames(uint32 address) {
 	return (address & 0xFF) + ((address >> 8) & 0xFF) * kDosCdFramesPerSecond +
 	       ((address >> 16) & 0xFF) * kDosCdFramesPerMinute;
@@ -56,12 +60,14 @@ inline uint32 dosCdFramesToHsg(uint32 frames) {
 	return frames >= kDosCdLeadIn ? frames - kDosCdLeadIn : 0;
 }
 
+/** How long a number of frames plays, in milliseconds */
 inline uint32 dosCdFramesToMillis(uint32 frames) {
 	return (uint32)((uint64)frames * 1000 / kDosCdFramesPerSecond);
 }
 
 // ---- The table of contents ----
 
+/** The tracks of a disc, as the driver reports them */
 struct DosCdToc {
 	int first, last;                    ///< number of the first and last track (0 and 0: none read)
 	uint32 leadOut;                     ///< where the disc ends, in frames
@@ -140,6 +146,7 @@ inline bool dosCdTrackRange(const DosCdToc &toc, int track, int startFrame, int 
 // ---- Requests to the CD-ROM device driver (INT 2Fh AX=1510h) ----
 // A 13 byte header: length, subunit, command, 16 bit status, 8 reserved bytes
 
+/** Sizes, commands and status bits of the requests to the device driver */
 enum {
 	kDosCdHeaderSize = 13,
 	kDosCdCmdIoctlInput = 3,
@@ -167,26 +174,13 @@ enum {
 	kDosCdStatusBusy = 0x0200        ///< audio is playing
 };
 
-inline void dosCdPut16(uint8 *p, uint16 v) {
-	p[0] = (uint8)v;
-	p[1] = (uint8)(v >> 8);
-}
-
-inline void dosCdPut32(uint8 *p, uint32 v) {
-	p[0] = (uint8)v;
-	p[1] = (uint8)(v >> 8);
-	p[2] = (uint8)(v >> 16);
-	p[3] = (uint8)(v >> 24);
-}
-
-inline uint16 dosCdGet16(const uint8 *p) {
-	return (uint16)(p[0] | (p[1] << 8));
-}
-
-inline uint32 dosCdGet32(const uint8 *p) {
-	return (uint32)p[0] | ((uint32)p[1] << 8) | ((uint32)p[2] << 16) | ((uint32)p[3] << 24);
-}
-
+/**
+ * Clear a request and fill in its header.
+ *
+ * @param request  the request
+ * @param length   its size in bytes, all of which are cleared
+ * @param command  the command (kDosCdCmd*)
+ */
 inline void dosCdFillHeader(uint8 *request, int length, int command) {
 	for (int i = 0; i < length; i++)
 		request[i] = 0;
@@ -201,11 +195,16 @@ inline void dosCdFillHeader(uint8 *request, int length, int command) {
 inline int dosCdBuildPlay(uint8 *request, uint32 startFrame, uint32 frames) {
 	dosCdFillHeader(request, kDosCdPlayRequestSize, kDosCdCmdPlay);
 	request[13] = 0;                                         // addressing mode: HSG
-	dosCdPut32(request + 14, dosCdFramesToHsg(startFrame));
-	dosCdPut32(request + 18, frames);
+	WRITE_LE_UINT32(request + 14, dosCdFramesToHsg(startFrame));
+	WRITE_LE_UINT32(request + 18, frames);
 	return kDosCdPlayRequestSize;
 }
 
+/**
+ * Stop (or pause) the audio that plays: the 13 bytes of the request.
+ *
+ * @return the size of the request
+ */
 inline int dosCdBuildStop(uint8 *request) {
 	dosCdFillHeader(request, kDosCdHeaderSize, kDosCdCmdStop);
 	return kDosCdHeaderSize;
@@ -215,28 +214,32 @@ inline int dosCdBuildStop(uint8 *request) {
 inline int dosCdBuildIoctl(uint8 *request, bool output, uint16 segment, uint16 offset, uint16 bytes) {
 	dosCdFillHeader(request, kDosCdIoctlRequestSize, output ? kDosCdCmdIoctlOutput : kDosCdCmdIoctlInput);
 	request[13] = 0;                                         // media descriptor
-	dosCdPut16(request + 14, offset);                        // far pointer: offset, then segment
-	dosCdPut16(request + 16, segment);
-	dosCdPut16(request + 18, bytes);
-	dosCdPut16(request + 20, 0);                             // starting sector (not used)
-	dosCdPut32(request + 22, 0);                             // volume ID (not used)
+	WRITE_LE_UINT16(request + 14, offset);                   // far pointer: offset, then segment
+	WRITE_LE_UINT16(request + 16, segment);
+	WRITE_LE_UINT16(request + 18, bytes);
+	WRITE_LE_UINT16(request + 20, 0);                        // starting sector (not used)
+	WRITE_LE_UINT32(request + 22, 0);                        // volume ID (not used)
 	return kDosCdIoctlRequestSize;
 }
 
+/** The status word the driver put in a request it has carried out */
 inline uint16 dosCdRequestStatus(const uint8 *request) {
-	return dosCdGet16(request + 3);
+	return READ_LE_UINT16(request + 3);
 }
 
+/** Does the status word say that the request failed? */
 inline bool dosCdStatusFailed(uint16 status) {
 	return (status & kDosCdStatusError) != 0;
 }
 
+/** Does the status word say that audio is playing? */
 inline bool dosCdStatusPlaying(uint16 status) {
 	return (status & kDosCdStatusBusy) != 0;
 }
 
 // ---- Control blocks ----
 
+/** The sizes of the IOCTL control blocks, in bytes */
 enum {
 	kDosCdDeviceStatusSize = 5,
 	kDosCdDiscInfoSize = 7,
@@ -245,7 +248,7 @@ enum {
 	kDosCdAudioStatusSize = 11
 };
 
-// Device status bits
+/** Device status bits */
 enum {
 	kDosCdDevicePlaysAudio = 1 << 4,
 	kDosCdDeviceSetsVolume = 1 << 8,
@@ -259,10 +262,17 @@ inline void dosCdBuildDeviceStatus(uint8 *block) {
 	block[0] = kDosCdIoctlDeviceStatus;
 }
 
+/**
+ * Read the answer to a device status question.
+ *
+ * @param block   the control block the driver filled in
+ * @param status  set to the device status bits (kDosCdDevice*)
+ * @return false if the block is the answer to another question
+ */
 inline bool dosCdParseDeviceStatus(const uint8 *block, uint32 &status) {
 	if (block[0] != kDosCdIoctlDeviceStatus)
 		return false;
-	status = dosCdGet32(block + 1);
+	status = READ_LE_UINT32(block + 1);
 	return true;
 }
 
@@ -280,12 +290,19 @@ inline void dosCdBuildDiscInfo(uint8 *block) {
 	block[0] = kDosCdIoctlDiscInfo;
 }
 
+/**
+ * Read the answer to a disc information question into a table of contents.
+ *
+ * @param block  the control block the driver filled in
+ * @param toc    its first and last tracks, and where the disc ends, are set
+ * @return false if the answer is to another question or makes no sense
+ */
 inline bool dosCdParseDiscInfo(const uint8 *block, DosCdToc &toc) {
 	if (block[0] != kDosCdIoctlDiscInfo || block[1] < 1 || block[2] < block[1] || block[2] > kDosCdMaxTrack)
 		return false;
 	toc.first = block[1];
 	toc.last = block[2];
-	toc.leadOut = dosCdRedBookToFrames(dosCdGet32(block + 3));
+	toc.leadOut = dosCdRedBookToFrames(READ_LE_UINT32(block + 3));
 	return true;
 }
 
@@ -297,10 +314,18 @@ inline void dosCdBuildTrackInfo(uint8 *block, int track) {
 	block[1] = (uint8)track;
 }
 
+/**
+ * Read the answer to a track information question into a table of contents.
+ *
+ * @param block  the control block the driver filled in
+ * @param track  the track asked about
+ * @param toc    where the track starts, and whether it is data, are set
+ * @return false if the answer is to another question or about another track
+ */
 inline bool dosCdParseTrackInfo(const uint8 *block, int track, DosCdToc &toc) {
 	if (block[0] != kDosCdIoctlTrackInfo || block[1] != track || track < 1 || track > kDosCdMaxTrack)
 		return false;
-	toc.start[track] = dosCdRedBookToFrames(dosCdGet32(block + 2));
+	toc.start[track] = dosCdRedBookToFrames(READ_LE_UINT32(block + 2));
 	toc.data[track] = (block[6] & 0x40) != 0;
 	return true;
 }
@@ -334,17 +359,18 @@ inline void dosCdBuildChannels(uint8 *block, byte left, byte right) {
 }
 
 // ---- A track that plays more than once ----
-// The drive plays a track once, so it is restarted when over. loops is the number of plays
-// left (-1: for ever; 0: nothing is playing).
+// The drive plays a track once, so it is restarted when over
 
+/** What dosCdLoopStep() found */
 enum DosCdStep {
 	kDosCdWait,       ///< still playing
 	kDosCdReplay,     ///< over, and plays again
 	kDosCdDone        ///< over, nothing more to play
 };
 
+/** The repeats of the track that plays */
 struct DosCdLoop {
-	int loops;
+	int loops;               ///< plays left (-1: for ever; 0: nothing is playing)
 	uint32 endTime;          ///< when the play in progress should be over, milliseconds of the system clock
 	int lateExtensions;      ///< times the drive was given longer because it still said it was playing
 
@@ -357,6 +383,7 @@ struct DosCdLoop {
 		lateExtensions = 0;
 	}
 
+	/** Nothing plays any more */
 	void cancel() {
 		loops = 0;
 		lateExtensions = 0;
@@ -414,12 +441,14 @@ inline int dosCdDriveLetter(const char *text) {
 // The drive's music goes by cable to the sound card, which mixes its CD input in at the level its
 // mixer is set to. A Sound Blaster 16's mixer has that level at 0 until a mixer program sets it.
 
+/** The mixers whose CD input the port knows how to set */
 enum DosCdMixer {
-	kDosCdNoMixer,
+	kDosCdNoMixer,      ///< none, or one the port does not know
 	kDosCdMixerSbPro,   ///< CT1345: CD volume in register 0x28, the left side in the high nibble
 	kDosCdMixerSb16     ///< CT1745: CD volume in 0x36 (left) and 0x37 (right), output switches in 0x3C
 };
 
+/** Mixer registers */
 enum {
 	kDosCdMixerSbProVoice = 0x04,
 	kDosCdMixerSbProCd = 0x28,

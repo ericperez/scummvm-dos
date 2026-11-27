@@ -113,7 +113,7 @@ bool mscdexRequest(int letter, uint8 *request, int length, uint8 *block, int blo
 
 	uint8 answer[2];
 	dosmemget(base + 3, 2, answer);
-	status = dosCdGet16(answer);
+	status = READ_LE_UINT16(answer);
 	if (block)
 		dosmemget(base + kBlockOffset, blockLength, block);
 	return !dosCdStatusFailed(status);

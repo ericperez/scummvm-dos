@@ -57,6 +57,7 @@ static inline Common::KeyCode dosKeycodeForChar(uint16_t unicode) {
 	return Common::KEYCODE_INVALID;
 }
 
+/** What a key press types and is called (see dosTypedKey()) */
 struct DosTypedKey {
 	uint16_t unicode;         ///< The character typed (KeyState::ascii), 0 if none
 	Common::KeyCode keycode;  ///< The key's name (KeyState::keycode)

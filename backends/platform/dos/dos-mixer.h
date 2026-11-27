@@ -87,7 +87,7 @@ private:
 
 	// Watchdog: has the DMA position stopped moving?
 
-	uint64 _stuckSince;
+	uint64 _stuckSince;        ///< uclock() when the DMA position was last seen moving
 
 	int16 _mixBuf[kChunkFrames * 2];
 	uint8 _outBuf[kChunkFrames];

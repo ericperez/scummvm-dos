@@ -34,6 +34,7 @@
 #include "backends/platform/dos/dos-input.h"
 
 #include "common/config-manager.h"
+#include "common/endian.h"
 #include "common/rect.h"
 #include "common/str.h"
 #include "common/textconsole.h"
@@ -321,7 +322,7 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	int count = VesaDisplay::listModes(modes, 64, &vbeVersion);
 	if (!count) {
 		_modeNotes.push_back(Common::String::format("DOSGFX: no 256 colour VESA modes (VBE %d.%d); menus use VGA mode 13h",
-		                                               vbeVersion >> 8, vbeVersion & 0xFF));
+		                     vbeVersion >> 8, vbeVersion & 0xFF));
 		return false;
 	}
 
@@ -1345,15 +1346,6 @@ void DOSGraphicsManager::updateScreen() {
 	}
 }
 
-static void putLE16(uint8 *p, unsigned v) {
-	p[0] = v & 0xFF;
-	p[1] = (v >> 8) & 0xFF;
-}
-static void putLE32(uint8 *p, unsigned v) {
-	putLE16(p, v & 0xFFFF);
-	putLE16(p + 2, v >> 16);
-}
-
 void DOSGraphicsManager::saveScreenshot() {
 	if (!_modeSet || _shotCount >= 9999)
 		return;
@@ -1383,15 +1375,15 @@ void DOSGraphicsManager::saveScreenshot() {
 	memset(header, 0, sizeof(header));
 	header[0] = 'B';
 	header[1] = 'M';
-	putLE32(header + 2, dataOffset + rowBytes * h);
-	putLE32(header + 10, dataOffset);
-	putLE32(header + 14, 40);          // size of the info header
-	putLE32(header + 18, w);
-	putLE32(header + 22, h);
-	putLE16(header + 26, 1);           // planes
-	putLE16(header + 28, 8);           // bits per pixel
-	putLE32(header + 34, rowBytes * h);
-	putLE32(header + 46, 256);         // colours used
+	WRITE_LE_UINT32(header + 2, dataOffset + rowBytes * h);
+	WRITE_LE_UINT32(header + 10, dataOffset);
+	WRITE_LE_UINT32(header + 14, 40);          // size of the info header
+	WRITE_LE_UINT32(header + 18, w);
+	WRITE_LE_UINT32(header + 22, h);
+	WRITE_LE_UINT16(header + 26, 1);           // planes
+	WRITE_LE_UINT16(header + 28, 8);           // bits per pixel
+	WRITE_LE_UINT32(header + 34, rowBytes * h);
+	WRITE_LE_UINT32(header + 46, 256);         // colours used
 	fwrite(header, 1, sizeof(header), f);
 
 	// The palette the screen shows now: the fixed 3-3-2 one for the overlay,
@@ -2284,14 +2276,14 @@ void DOSGraphicsManager::saveScreenshot16() {
 	memset(header, 0, sizeof(header));
 	header[0] = 'B';
 	header[1] = 'M';
-	putLE32(header + 2, dataOffset + rowBytes * h);
-	putLE32(header + 10, dataOffset);
-	putLE32(header + 14, 40);
-	putLE32(header + 18, w);
-	putLE32(header + 22, h);
-	putLE16(header + 26, 1);
-	putLE16(header + 28, 24);
-	putLE32(header + 34, rowBytes * h);
+	WRITE_LE_UINT32(header + 2, dataOffset + rowBytes * h);
+	WRITE_LE_UINT32(header + 10, dataOffset);
+	WRITE_LE_UINT32(header + 14, 40);
+	WRITE_LE_UINT32(header + 18, w);
+	WRITE_LE_UINT32(header + 22, h);
+	WRITE_LE_UINT16(header + 26, 1);
+	WRITE_LE_UINT16(header + 28, 24);
+	WRITE_LE_UINT32(header + 34, rowBytes * h);
 	fwrite(header, 1, sizeof(header), f);
 
 	uint8 *row = new uint8[rowBytes];

@@ -168,7 +168,7 @@ openmpt_module *openmpt_module_create2(openmpt_stream_callbacks streamCallbacks,
 		return nullptr;
 	}
 	openmpt_module *mod = g_api->moduleCreate2(streamCallbacks, stream, logFunc, logUser, errorFunc, errorUser, error,
-	    errorMessage, ctls);
+	                      errorMessage, ctls);
 	if (mod)
 		g_openModules++;
 	return mod;

@@ -28,6 +28,7 @@
 // for a high colour mode: a fixed 6x7x6 colour cube with 4x4 Bayer ordered dithering, and
 // plain (undithered) tables for the mouse cursor. No DOS calls, so unit tested on the host.
 
+/** The colour cube */
 enum {
 	kDitherRed = 6,                                            ///< levels of red
 	kDitherGreen = 7,                                          ///< levels of green

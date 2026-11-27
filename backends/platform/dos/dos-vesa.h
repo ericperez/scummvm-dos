@@ -31,10 +31,6 @@
 
 #include "backends/platform/dos/dos-modes.h"
 
-/**
- * VESA graphics modes above 320x200, through a linear framebuffer when the card
- * has one, and through 64KB banks when it does not.
- */
 struct VesaModeInfo;
 
 #ifdef USE_RGB_COLOR
@@ -49,6 +45,10 @@ struct VesaDirectMode {
 };
 #endif
 
+/**
+ * VESA graphics modes above 320x200, through a linear framebuffer when the card
+ * has one, and through 64KB banks when it does not.
+ */
 class VesaDisplay {
 public:
 	VesaDisplay();

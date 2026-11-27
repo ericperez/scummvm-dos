@@ -154,17 +154,16 @@ private:
 	unsigned _rate;
 	unsigned _ringBytes;
 
-	// DMA memory in conventional memory (below 1MB). _blockPhys is what was
-	// allocated; _physAddr is the ring inside it that does not cross a DMA page.
+	// DMA memory in conventional memory (below 1MB)
 
-	int _dosSelector;
-	uint32_t _blockPhys;
-	uint32_t _physAddr;
+	int _dosSelector;         ///< selector of the conventional memory block allocated
+	uint32_t _blockPhys;      ///< where the block allocated is
+	uint32_t _physAddr;       ///< the ring inside the block, which does not cross a DMA page
 
 	// PIC mask bit we set for the card's IRQ, so it can be put back
 
-	bool _irqMasked;
-	uint8_t _origPicMask;
+	bool _irqMasked;          ///< the card's IRQ is masked by us
+	uint8_t _origPicMask;     ///< the PIC mask before that
 	uint16_t _irqPort;        ///< PIC mask port of the card's IRQ (0x21 or 0xA1)
 	uint8_t _irqBit;
 	bool _cascadeTouched;     ///< IRQ 8-15: we also unmasked IRQ 2 on the master PIC

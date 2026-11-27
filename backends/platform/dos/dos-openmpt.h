@@ -49,7 +49,7 @@ struct DosOpenMPTApi {
 };
 
 enum {
-	kDosOpenMPTApiVersion = 1
+	kDosOpenMPTApiVersion = 1   ///< DosOpenMPTApi::version of this layout of the structure
 };
 
 /** The one symbol OPENMPT.DXE exports */
@@ -63,7 +63,9 @@ void dosOpenMPTRelease();
 
 #else
 
+/** Tracker music is in the program, or not built: nothing to load */
 inline void dosOpenMPTEngineInit(const char *) {}
+/** Tracker music is in the program, or not built: nothing to unload */
 inline void dosOpenMPTRelease() {}
 
 #endif

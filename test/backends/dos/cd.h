@@ -182,12 +182,12 @@ public:
 		TS_ASSERT_EQUALS(request[0], 22);                        // length of the request
 		TS_ASSERT_EQUALS(request[1], 0);                         // subunit
 		TS_ASSERT_EQUALS(request[2], 0x84);                      // command: play audio
-		TS_ASSERT_EQUALS(dosCdGet16(request + 3), 0);            // status: the driver fills it in
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 3), 0);        // status: the driver fills it in
 		for (int i = 5; i < 13; i++)
 			TS_ASSERT_EQUALS(request[i], 0);                     // reserved
 		TS_ASSERT_EQUALS(request[13], 0);                        // HSG addressing, which every driver takes
-		TS_ASSERT_EQUALS(dosCdGet32(request + 14), 300u);        // 00:06:00 is HSG sector 300
-		TS_ASSERT_EQUALS(dosCdGet32(request + 18), 450u);        // number of frames
+		TS_ASSERT_EQUALS(READ_LE_UINT32(request + 14), 300u);    // 00:06:00 is HSG sector 300
+		TS_ASSERT_EQUALS(READ_LE_UINT32(request + 18), 450u);    // number of frames
 	}
 
 	void test_play_request_start_is_a_little_endian_hsg_sector() {
@@ -199,7 +199,7 @@ public:
 		TS_ASSERT_EQUALS(request[17], 0);
 
 		dosCdBuildPlay(request, 75 * 60 * 74, 1);                // 74 minutes in: more than 16 bits
-		TS_ASSERT_EQUALS(dosCdGet32(request + 14), 75u * 60 * 74 - 150);
+		TS_ASSERT_EQUALS(READ_LE_UINT32(request + 14), 75u * 60 * 74 - 150);
 	}
 
 	void test_stop_request_layout() {
@@ -218,15 +218,15 @@ public:
 		TS_ASSERT_EQUALS(dosCdBuildIoctl(request, false, 0x1234, 0x0005, 7), 26);
 		TS_ASSERT_EQUALS(request[0], 26);
 		TS_ASSERT_EQUALS(request[2], 3);                         // IOCTL input
-		TS_ASSERT_EQUALS(dosCdGet16(request + 14), 0x0005);      // the control block's far pointer: offset...
-		TS_ASSERT_EQUALS(dosCdGet16(request + 16), 0x1234);      // ...then segment
-		TS_ASSERT_EQUALS(dosCdGet16(request + 18), 7);           // its size
-		TS_ASSERT_EQUALS(dosCdGet16(request + 20), 0);
-		TS_ASSERT_EQUALS(dosCdGet32(request + 22), 0u);
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 14), 0x0005);  // the control block's far pointer: offset...
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 16), 0x1234);  // ...then segment
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 18), 7);       // its size
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 20), 0);
+		TS_ASSERT_EQUALS(READ_LE_UINT32(request + 22), 0u);
 
 		dosCdBuildIoctl(request, true, 0x1234, 0x0005, 9);
 		TS_ASSERT_EQUALS(request[2], 12);                        // IOCTL output
-		TS_ASSERT_EQUALS(dosCdGet16(request + 18), 9);
+		TS_ASSERT_EQUALS(READ_LE_UINT16(request + 18), 9);
 	}
 
 	void test_request_header() {
@@ -248,7 +248,7 @@ public:
 		TS_ASSERT(!dosCdStatusPlaying(0x0100));
 
 		uint8 request[kDosCdHeaderSize] = {0};
-		dosCdPut16(request + 3, 0x0300);
+		WRITE_LE_UINT16(request + 3, 0x0300);
 		TS_ASSERT_EQUALS(dosCdRequestStatus(request), 0x0300);
 	}
 

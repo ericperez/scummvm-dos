@@ -31,6 +31,7 @@
 
 // The parts of dos-files.cpp that make no DOS calls, so unit tested on the host
 
+/** Does DOS, without a long file name driver, give this file another (8.3) name? */
 inline bool dosNeedsShortName(const Common::String &name) {
 	if (name.empty())
 		return false;

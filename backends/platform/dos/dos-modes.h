@@ -28,6 +28,7 @@
 // Choosing the launcher's resolution from the card's VESA 256 colour modes and, when the
 // monitor answers DDC, its EDID; no DOS calls, so unit tested on the host
 
+/** The size of a video mode, in pixels */
 struct DosModeSize {
 	int w, h;
 };
@@ -133,6 +134,17 @@ static inline bool dosAspectMatches(int w, int h, int num, int den) {
 	return diff * 1000 <= 25L * h * num;
 }
 
+/**
+ * The largest of the modes that fits within a limit and has an aspect ratio.
+ *
+ * @param modes     the modes to choose from
+ * @param count     how many there are
+ * @param limW      the widest a mode may be
+ * @param limH      the highest a mode may be
+ * @param num, den  the aspect ratio wanted (see dosAspectMatches())
+ * @param out       set to the mode chosen
+ * @return false if none fits
+ */
 static inline bool dosPickLargest(const DosModeSize *modes, int count, int limW, int limH,
                                   int num, int den, DosModeSize &out) {
 	bool found = false;
