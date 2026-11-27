@@ -79,6 +79,7 @@ enum StackState {
 };
 
 static StackState g_state = kNotChecked;
+static bool g_toldNoDriver = false;
 static bool g_exitHandlerSet = false;
 
 /** The number of the interrupt (0x60..0x80) a packet driver answers on, or -1. */
@@ -117,7 +118,6 @@ int SDLNet_Init(void) {
 		if (vector < 0) {
 			g_state = kNoDriver;
 			setError("no packet driver is loaded");
-			warning("DOS: no TCP/IP stack found (no packet driver loaded): networking is disabled");
 		} else {
 			g_state = kNotStarted;
 			debug(1, "DOS: packet driver found at interrupt 0x%02X", vector);
@@ -141,6 +141,10 @@ bool SDLNet_Available(void) {
 bool dosNetworkAvailable() {
 	if (g_state == kNotChecked)
 		SDLNet_Init();
+	if (g_state == kNoDriver && !g_toldNoDriver) {
+		g_toldNoDriver = true;
+		warning("DOS: no TCP/IP stack found (no packet driver loaded): networking is disabled");
+	}
 	return SDLNet_Available();
 }
 

@@ -195,6 +195,7 @@ bool DOSGraphicsManager::setPhysicalMode(int width, int height) {
 	}
 
 	_modeSet = true;
+	logModeNotes();
 	_physW = width;
 	_physH = height;
 	#ifdef USE_RGB_COLOR
@@ -262,6 +263,16 @@ bool DOSGraphicsManager::isLauncherContext() {
 	return ConfMan.getActiveDomain() == nullptr;
 }
 
+// What choosing a mode found (chooseGuiMode(), listDirectModes()) is often decided before the mode is set,
+// while the screen is still in text mode: warned once it is in a graphics mode, so that it goes to the log only
+void DOSGraphicsManager::logModeNotes() {
+	if (!_modeSet)
+		return;
+	for (uint i = 0; i < _modeNotes.size(); i++)
+		warning("%s", _modeNotes[i].c_str());
+	_modeNotes.clear();
+}
+
 // The menus' resolution: the largest 256 colour mode, up to a limit, that suits the monitor
 //
 //   dos_gui_mode  (or SCUMMVM_DOS_GUI_MODE)  auto (default) | 320x200 | <width>x<height>
@@ -285,14 +296,14 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	setting.toLowercase();
 
 	if (setting == "320x200" || setting == "vga" || setting == "off" || setting == "small") {
-		warning("DOSGFX: menus use VGA mode 13h (320x200) as configured");
+		_modeNotes.push_back(Common::String::format("DOSGFX: menus use VGA mode 13h (320x200) as configured"));
 		return false;
 	}
 
 	int explicitW = 0, explicitH = 0;
 	bool wantExplicit = setting != "auto" && dosParseSize(setting.c_str(), explicitW, explicitH);
 	if (setting != "auto" && !wantExplicit)
-		warning("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str());
+		_modeNotes.push_back(Common::String::format("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str()));
 
 	int maxW = 1024, maxH = 768;
 	Common::String maxSetting;
@@ -301,7 +312,7 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	if (const char *env = getenv("SCUMMVM_DOS_GUI_MAX"))
 		maxSetting = env;
 	if (!maxSetting.empty() && !dosParseSize(maxSetting.c_str(), maxW, maxH)) {
-		warning("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str());
+		_modeNotes.push_back(Common::String::format("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str()));
 		maxW = 1024;
 		maxH = 768;
 	}
@@ -314,16 +325,16 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	int vbeVersion = 0;
 	int count = VesaDisplay::listModes(modes, 64, &vbeVersion);
 	if (!count) {
-		warning("DOSGFX: no 256 colour VESA modes (VBE %d.%d); menus use VGA mode 13h",
-		        vbeVersion >> 8, vbeVersion & 0xFF);
+		_modeNotes.push_back(Common::String::format("DOSGFX: no 256 colour VESA modes (VBE %d.%d); menus use VGA mode 13h",
+		                                               vbeVersion >> 8, vbeVersion & 0xFF));
 		return false;
 	}
 
 	Common::String list;
 	for (int i = 0; i < count && i < 40; i++)
 		list += Common::String::format(" %dx%d", modes[i].w, modes[i].h);
-	warning("DOSGFX: VBE %d.%d, 256 colour modes:%s", vbeVersion >> 8, vbeVersion & 0xFF, list.c_str());
-	warning("DOSGFX: the card reports %d KB of video memory", VesaDisplay::videoMemoryKB());
+	_modeNotes.push_back(Common::String::format("DOSGFX: VBE %d.%d, 256 colour modes:%s", vbeVersion >> 8, vbeVersion & 0xFF, list.c_str()));
+	_modeNotes.push_back(Common::String::format("DOSGFX: the card reports %d KB of video memory", VesaDisplay::videoMemoryKB()));
 
 	// A size asked for by name, if the card has it
 	if (wantExplicit) {
@@ -336,13 +347,13 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 				#ifdef USE_RGB_COLOR
 				chooseGuiDepth();
 				#endif
-				warning("DOSGFX: menus use %dx%d as configured", _guiW, _guiH);
+				_modeNotes.push_back(Common::String::format("DOSGFX: menus use %dx%d as configured", _guiW, _guiH));
 				width = _guiW;
 				height = _guiH;
 				return true;
 			}
 		}
-		warning("DOSGFX: this card has no %dx%d 256 colour mode; choosing one", explicitW, explicitH);
+		_modeNotes.push_back(Common::String::format("DOSGFX: this card has no %dx%d 256 colour mode; choosing one", explicitW, explicitH));
 	}
 
 	// What the monitor says it is
@@ -357,20 +368,20 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	const char *fake = getenv("SCUMMVM_DOS_EDID_SIZE");
 	if (fake && dosParseSize(fake, nativeW, nativeH)) {
 		haveNative = true;
-		warning("DOSGFX: pretending the monitor reports %dx%d", nativeW, nativeH);
+		_modeNotes.push_back(Common::String::format("DOSGFX: pretending the monitor reports %dx%d", nativeW, nativeH));
 	} else if (askMonitor) {
 		uint8 edid[128];
 		if (VesaDisplay::readEdid(edid) && dosEdidSize(edid, nativeW, nativeH)) {
 			haveNative = true;
-			warning("DOSGFX: the monitor reports %dx%d", nativeW, nativeH);
+			_modeNotes.push_back(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
 		} else {
-			warning("DOSGFX: the monitor does not report its size");
+			_modeNotes.push_back(Common::String::format("DOSGFX: the monitor does not report its size"));
 		}
 	}
 
 	DosModeSize best;
 	if (!dosChooseGuiMode(modes, count, maxW, maxH, haveNative, nativeW, nativeH, best)) {
-		warning("DOSGFX: no 256 colour mode suits (limit %dx%d); menus use VGA mode 13h", maxW, maxH);
+		_modeNotes.push_back(Common::String::format("DOSGFX: no 256 colour mode suits (limit %dx%d); menus use VGA mode 13h", maxW, maxH));
 		return false;
 	}
 
@@ -380,7 +391,7 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	#ifdef USE_RGB_COLOR
 	chooseGuiDepth();
 	#endif
-	warning("DOSGFX: menus use %dx%d (limit %dx%d)", _guiW, _guiH, maxW, maxH);
+	_modeNotes.push_back(Common::String::format("DOSGFX: menus use %dx%d (limit %dx%d)", _guiW, _guiH, maxW, maxH));
 	width = _guiW;
 	height = _guiH;
 	return true;
@@ -399,14 +410,14 @@ bool DOSGraphicsManager::setLauncherMode() {
 					break;
 				}
 			}
-			warning("DOSGFX: could not set the %dx%d high colour menu mode; using 256 colours", w, h);
+			_modeNotes.push_back(Common::String::format("DOSGFX: could not set the %dx%d high colour menu mode; using 256 colours", w, h));
 			_guiBpp = 8;
 		}
 		#endif
 		if (setPhysicalMode(w, h))
 			return true;
 
-		warning("DOSGFX: could not set the menu mode %dx%d; using 320x200", w, h);
+		_modeNotes.push_back(Common::String::format("DOSGFX: could not set the menu mode %dx%d; using 320x200", w, h));
 		_guiModeValid = false; // do not try again
 	}
 	return setPhysicalMode(kVgaWidth, kVgaHeight);
@@ -1663,7 +1674,8 @@ void DOSGraphicsManager::listDirectModes() {
 	if (const char *env = getenv("SCUMMVM_DOS_16BIT"))
 		wanted = atoi(env) != 0;
 	if (!wanted) {
-		warning("DOSGFX: high colour switched off");
+		_modeNotes.push_back("DOSGFX: high colour switched off");
+		logModeNotes();
 		return;
 	}
 
@@ -1693,7 +1705,8 @@ void DOSGraphicsManager::listDirectModes() {
 	Common::String list;
 	for (int i = 0; i < _directCount && i < 24; i++)
 		list += Common::String::format(" %dx%dx%d", _direct[i].width, _direct[i].height, _direct[i].bpp);
-	warning("DOSGFX: high colour modes:%s", _directCount ? list.c_str() : " none");
+	_modeNotes.push_back(Common::String::format("DOSGFX: high colour modes:%s", _directCount ? list.c_str() : " none"));
+	logModeNotes();
 }
 
 Common::Rect DOSGraphicsManager::gameRectToPhysical(const Common::Rect &r) const {
@@ -1769,6 +1782,7 @@ bool DOSGraphicsManager::setPhysicalDirect(const VesaDirectMode &m) {
 
 	_useVesa = true;
 	_modeSet = true;
+	logModeNotes();
 	setupPageFlipping();
 	_physW = m.width;
 	_physH = m.height;
@@ -2032,7 +2046,7 @@ void DOSGraphicsManager::chooseGuiDepth() {
 	}
 	if (pick < 0) {
 		if (depth == "16")
-			warning("DOSGFX: no high colour mode of %dx%d; menus use 256 colours", _guiW, _guiH);
+			_modeNotes.push_back(Common::String::format("DOSGFX: no high colour mode of %dx%d; menus use 256 colours", _guiW, _guiH));
 		return;
 	}
 

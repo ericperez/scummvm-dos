@@ -27,6 +27,7 @@
 #include "backends/platform/dos/dos-dither.h"
 #include "backends/platform/dos/dos-vesa.h"
 #include "common/rect.h"
+#include "common/str-array.h"
 #include "graphics/surface.h"
 
 /**
@@ -278,6 +279,10 @@ private:
 	bool _guiModeChosen;
 	bool _guiModeValid;
 	int _guiW, _guiH;
+
+	/** What choosing a mode found, warned once the screen is in a graphics mode (logModeNotes()) */
+	Common::StringArray _modeNotes;
+	void logModeNotes();
 
 	#ifdef USE_RGB_COLOR
 	// High colour

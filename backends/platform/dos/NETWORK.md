@@ -30,7 +30,7 @@ built into the program. It talks to the network card through a **packet driver**
 * At start-up it only **looks for a packet driver** (a look at the interrupt vectors, nothing is
   started). With none, there can be no TCP/IP stack: one WARNING goes to the log
   (`DOS: no TCP/IP stack found (no packet driver loaded): networking is disabled`) and the LAN tab
-  is not offered.
+  is not offered. The warning comes once the screen is in a graphics mode, so it is not shown on it.
 * The stack is **started the first time the server is run**, not before, so a game is never slowed down by
   a network it does not use. If it does not start (no address from DHCP, no configuration) one WARNING
   says why (`DOS: the TCP/IP stack did not start (RARP protocol failed): networking is disabled`), the server does

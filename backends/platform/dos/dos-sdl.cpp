@@ -49,6 +49,7 @@
 #include "backends/saves/default/default-saves.h"
 #include "common/config-manager.h"
 #include "common/events.h"
+#include "common/str-array.h"
 #include "engines/engine.h"
 #include "gui/gui-manager.h"
 
@@ -122,6 +123,10 @@ bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidt
 static bool g_guiChosen = false, g_guiValid = false;
 static uint g_guiW = 0, g_guiH = 0;
 
+// What choosing it found: decided before the window opens, while the screen is in text mode, so warned
+// by dosLogStartup()
+static Common::StringArray g_guiNotes;
+
 /**
  * The launcher's resolution, picked as DOSGraphicsManager::chooseGuiMode() does (same settings), from the
  * RGB565 modes. Decided once.
@@ -149,7 +154,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 	int explicitW = 0, explicitH = 0;
 	const bool wantExplicit = setting != "auto" && dosParseSize(setting.c_str(), explicitW, explicitH);
 	if (setting != "auto" && !wantExplicit)
-		warning("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str());
+		g_guiNotes.push_back(Common::String::format("DOSGFX: dos_gui_mode '%s' is not 'auto' or a size like 800x600; using auto", setting.c_str()));
 
 	int maxW = 1024, maxH = 768;
 	Common::String maxSetting;
@@ -158,7 +163,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 	if (const char *env = getenv("SCUMMVM_DOS_GUI_MAX"))
 		maxSetting = env;
 	if (!maxSetting.empty() && !dosParseSize(maxSetting.c_str(), maxW, maxH)) {
-		warning("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str());
+		g_guiNotes.push_back(Common::String::format("DOSGFX: dos_gui_max '%s' is not a size like 1024x768; using 1024x768", maxSetting.c_str()));
 		maxW = 1024;
 		maxH = 768;
 	}
@@ -193,7 +198,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 				return true;
 			}
 		}
-		warning("DOSGFX: no %dx%d mode; choosing one", explicitW, explicitH);
+		g_guiNotes.push_back(Common::String::format("DOSGFX: no %dx%d mode; choosing one", explicitW, explicitH));
 	}
 
 	// What the monitor says it is
@@ -212,19 +217,19 @@ bool dosGuiResolution(uint &width, uint &height) {
 		uint8 edid[128];
 		haveNative = VesaDisplay::readEdid(edid) && dosEdidSize(edid, nativeW, nativeH);
 		if (haveNative)
-			warning("DOSGFX: the monitor reports %dx%d", nativeW, nativeH);
+			g_guiNotes.push_back(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
 	}
 
 	DosModeSize best;
 	if (!dosChooseGuiMode(sizes, count, maxW, maxH, haveNative, nativeW, nativeH, best)) {
-		warning("DOSGFX: no RGB565 mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH);
+		g_guiNotes.push_back(Common::String::format("DOSGFX: no RGB565 mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH));
 		return false;
 	}
 
 	g_guiW = best.w;
 	g_guiH = best.h;
 	g_guiValid = true;
-	warning("DOSGFX: menus use %dx%d (limit %dx%d)", g_guiW, g_guiH, maxW, maxH);
+	g_guiNotes.push_back(Common::String::format("DOSGFX: menus use %dx%d (limit %dx%d)", g_guiW, g_guiH, maxW, maxH));
 	width = g_guiW;
 	height = g_guiH;
 	return true;
@@ -337,6 +342,18 @@ void dosPumpAudio() {
 	SDL_Delay(0);
 }
 
+// Called once the window is open (base/main.cpp): what start-up found goes to the log, not the text screen
+void dosLogStartup() {
+	for (uint i = 0; i < g_guiNotes.size(); i++)
+		warning("%s", g_guiNotes[i].c_str());
+	g_guiNotes.clear();
+
+	#ifdef USE_SDL_NET
+	// Warns if there is no TCP/IP stack for the local web server
+	dosNetworkAvailable();
+	#endif
+}
+
 OSystem_SDL_DOS::OSystem_SDL_DOS() :
 	_shotEveryMs(0), _shotsTaken(0), _shotAtMs(0), _quitAtMs(0), _quitSent(false), _earlyLogDone(false) {
 	_lastError[0] = '\0';
@@ -355,11 +372,6 @@ void OSystem_SDL_DOS::initBackend() {
 
 	// Savegames whose names do not fit 8.3 are found with or without a long file name driver
 	_savefileManager = dosCreateSaveFileManager();
-
-	#ifdef USE_SDL_NET
-	// Warns if there is no TCP/IP stack for the local web server
-	dosNetworkAvailable();
-	#endif
 
 	// 2048-frame device buffers (SDL's default is 1024), so a game loop that polls only every 100 ms or so
 	// plays without breaks, at the price of more latency (SDL_AUDIO_DEVICE_SAMPLE_FRAMES overrides it)

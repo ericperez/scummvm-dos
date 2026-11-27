@@ -639,7 +639,7 @@ void OSystem_SDL::initSDL() {
 	if (!_initedSDLnet) {
 		// Initialize SDL_net
 #ifdef USE_DOS_SDL
-		// On DOS, no packet driver just means no web server (SDLNet_Init has logged it)
+		// On DOS, no packet driver just means no web server (dosNetworkAvailable() logs it)
 		SDLNet_Init();
 #else
 		if (SDLNet_Init() == -1)

@@ -37,6 +37,9 @@ public:
 
 	void init() override;
 
+	/** Say which card init() found and how it plays (dosLogStartup(), once the screen is in a graphics mode). */
+	void logDevice();
+
 	/** Feed the sound card. Cheap when there is nothing to do. */
 	void update();
 

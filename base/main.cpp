@@ -80,6 +80,11 @@
 #include "backends/networking/sdl_net/localwebserver.h"
 #endif
 
+#ifdef USE_DOS_DRIVER
+// In backends/platform/dos/dos.cpp and dos-sdl.cpp: warns what the backend found while the screen was in text mode
+void dosLogStartup();
+#endif
+
 #if defined(__DC__)
 #include "backends/platform/dc/DCLauncherDialog.h"
 #else
@@ -612,6 +617,11 @@ extern "C" int scummvm_main(int argc, const char * const argv[]) {
 	}
 #endif
 	setupGraphics(system);
+
+#ifdef USE_DOS_DRIVER
+	// Once in a graphics mode, so that the backend's start-up warnings go to the log only
+	dosLogStartup();
+#endif
 
 	if (!configLoadStatus) {
 		GUI::MessageDialog alert(_("Bad config file format. overwrite?"), _("Yes"), _("Cancel"));

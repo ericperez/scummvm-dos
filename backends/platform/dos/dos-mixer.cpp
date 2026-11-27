@@ -71,12 +71,6 @@ void DOSMixerManager::init() {
 
 	if (_hardware) {
 		_rate = _sb.getSampleRate();
-		warning("DOS audio: Sound Blaster at %x, IRQ %d, DMA %d, HDMA %d, DSP %d.%02d: %u Hz %s, %s",
-		        _sb.getBase(), _sb.getIrq(), _sb.getDma(), _sb.getHdma(), _sb.getDspMajor(), _sb.getDspMinor(), _rate,
-		        _sb.isStereo16() ? "16-bit stereo" : "8-bit mono",
-		        _sb.isIrqDriven() ? "interrupt handler active" : "polled only");
-		if (_sb.getError()[0])
-			warning("DOS audio: note: %s", _sb.getError());
 
 		// Start filling a little ahead of wherever the card is by now (it
 		// has been playing silence since init() started it)
@@ -86,7 +80,6 @@ void DOSMixerManager::init() {
 		_writePos = (_lastPos + kResyncMargin) % SoundBlaster::kRingFrames;
 		_lastPollTick = _stuckSince = (uint64)uclock();
 	} else {
-		warning("DOS audio: Sound Blaster not usable (%s), sound is off", _sb.getError());
 		_rate = 22050;
 		_lastTick = (uint64)uclock();
 	}
@@ -94,6 +87,19 @@ void DOSMixerManager::init() {
 	_mixer = new Audio::MixerImpl(_rate, true, 1024);
 	assert(_mixer);
 	_mixer->setReady(true);
+}
+
+void DOSMixerManager::logDevice() {
+	if (_hardware) {
+		warning("DOS audio: Sound Blaster at %x, IRQ %d, DMA %d, HDMA %d, DSP %d.%02d: %u Hz %s, %s",
+		        _sb.getBase(), _sb.getIrq(), _sb.getDma(), _sb.getHdma(), _sb.getDspMajor(), _sb.getDspMinor(), _rate,
+		        _sb.isStereo16() ? "16-bit stereo" : "8-bit mono",
+		        _sb.isIrqDriven() ? "interrupt handler active" : "polled only");
+		if (_sb.getError()[0])
+			warning("DOS audio: note: %s", _sb.getError());
+	} else {
+		warning("DOS audio: Sound Blaster not usable (%s), sound is off", _sb.getError());
+	}
 }
 
 void DOSMixerManager::suspendAudio() {

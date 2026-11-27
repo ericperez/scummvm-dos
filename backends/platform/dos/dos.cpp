@@ -75,6 +75,7 @@ public:
 	uint32 getMillis(bool skipRecord = false) override;
 	void delayMillis(uint msecs) override;
 	void updateAudio(); ///< also called by the MIDI driver while it waits (dosPumpAudio())
+	void logStartup();  ///< see dosLogStartup()
 	void getTimeAndDate(TimeDate &td, bool skipRecord = false) const override;
 
 	void quit() override;
@@ -208,10 +209,6 @@ void OSystem_DOS::initBackend() {
 	_mixerManager->init();
 
 	dosKeyboardInit();
-	#ifdef USE_SDL_NET
-	// Warns if there is no TCP/IP stack for the local web server
-	dosNetworkAvailable();
-	#endif
 	if (getenv("SCUMMVM_DOS_JOYSTICK")) {
 		if (dosJoystickInit())
 			warning("DOS: joystick found on the game port (moves the cursor, buttons click)");
@@ -248,6 +245,20 @@ void OSystem_DOS::updateAudio() {
 void dosPumpAudio() {
 	if (g_dosSystem)
 		g_dosSystem->updateAudio();
+}
+
+void OSystem_DOS::logStartup() {
+	_dosMixer->logDevice();
+	#ifdef USE_SDL_NET
+	// Warns if there is no TCP/IP stack for the local web server
+	dosNetworkAvailable();
+	#endif
+}
+
+// Called once the screen is in a graphics mode (base/main.cpp): what start-up found goes to the log, not the text screen
+void dosLogStartup() {
+	if (g_dosSystem)
+		g_dosSystem->logStartup();
 }
 
 void OSystem_DOS::parseScriptedClicks(const char *spec) {
