@@ -13,13 +13,14 @@ cd.h       DosCdTestSuite       20 dos-cd.h
 dither.h   DosDitherTestSuite   15 dos-dither.h
 modes.h    DosModesTestSuite    10 dos-modes.h
 names.h    DosNamesTestSuite     6 dos-names.h
-netparse.h DosNetParseTestSuite  8 dos-netparse.h
+netparse.h DosNetParseTestSuite 10 dos-netparse.h
 joystick.h DosJoystickTestSuite 10 dos-joystick.h
 filesys.h  DosFileSysTestSuite  10 dos-filesys.h
 banner.h   DosBannerTestSuite   10 dos-banner.h
 scancodes.h DosScanCodesTestSuite 20 dos-scancodes.h
 blaster.h  DosBlasterTestSuite  12 dos-blaster.h
 vesa.h     DosVesaTestSuite     12 dos-vesainfo.h
+dmaclock.h DosDmaClockTestSuite 20 dos-dmaclock.h
 "
 
 grep -q 'test/backends/dos/\*\.h' "$SRC/test/module.mk" || fail "test/module.mk does not list test/backends/dos/*.h"

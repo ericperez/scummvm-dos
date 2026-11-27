@@ -33,6 +33,7 @@
 #include <time.h>
 
 #include "backends/platform/dos/dos-blaster.h"
+#include "backends/platform/dos/dos-dmaclock.h"
 #include "backends/platform/dos/dos-sb.h"
 
 static SoundBlaster *g_active = nullptr;
@@ -360,7 +361,7 @@ bool SoundBlaster::dmaRunning() {
 	const uclock_t limit = UCLOCKS_PER_SEC / 5;
 
 	while (uclock() - begin < limit) {
-		unsigned moved = (getPlayPosition() + kRingFrames - first) % kRingFrames;
+		unsigned moved = dosDmaRingDistance(first, getPlayPosition(), kRingFrames);
 		if (moved >= 16 && moved < kRingFrames / 2)
 			return true;
 	}
@@ -644,12 +645,8 @@ unsigned SoundBlaster::getPlayPosition() {
 		previous = count;
 	}
 
-	// count is "units left, minus one" (a unit is a byte, or a word on the
-	// 16-bit channels); it wraps to 0xFFFF at terminal count
-	unsigned remaining = (count + 1) * (_activeChannel >= 4 ? 2 : 1);
-	if (remaining > _ringBytes)
-		return 0;
-	return (_ringBytes - remaining) / getFrameBytes();
+	// Channels 4 and up count words (see dos-dmaclock.h)
+	return dosDmaCountToFrame(count, _activeChannel >= 4, _ringBytes, getFrameBytes());
 }
 
 void SoundBlaster::writeFrames(unsigned frameOffset, const void *data, unsigned frames) {

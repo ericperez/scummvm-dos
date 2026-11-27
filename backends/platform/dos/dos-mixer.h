@@ -23,6 +23,7 @@
 #define BACKENDS_PLATFORM_DOS_MIXER_H
 
 #include "backends/mixer/mixer.h"
+#include "backends/platform/dos/dos-dmaclock.h"
 #include "backends/platform/dos/dos-sb.h"
 
 /**
@@ -77,17 +78,9 @@ private:
 	unsigned _writePos;        ///< Next ring offset to write
 	uint64 _lastTick;          ///< For the null device: when we last ran
 
-	// The card's position in frames since the start (the clock counts the ring's laps)
-
-	unsigned _lastPos;         ///< Ring position at the previous call
-	uint64 _lastPollTick;      ///< uclock() at the previous call
-	uint64 _playAbs;           ///< Frames the card has played
-	uint64 _writtenAbs;        ///< Frames we have given it (always ahead of _playAbs when all is well)
+	DosDmaClock _clock;        ///< The card's position in frames since the start, and whether it stopped
+	uint64 _writtenAbs;        ///< Frames we have given it (always ahead of _clock.played when all is well)
 	unsigned _underruns;       ///< Times the card ran past everything we had written
-
-	// Watchdog: has the DMA position stopped moving?
-
-	uint64 _stuckSince;        ///< uclock() when the DMA position was last seen moving
 
 	int16 _mixBuf[kChunkFrames * 2];
 	uint8 _outBuf[kChunkFrames];

@@ -13,12 +13,13 @@ The suites are in `test/backends/dos/` (`test/module.mk` takes every `*.h` there
 | `DosKeymapTestSuite` | keyboard layouts: BIOS character + scan code to a key, in the DOS code page | `dos-keymap.h`, `dos-bioskey.h`, `dos-codepages.h` |
 | `DosCdTestSuite` | CD audio: Red Book addresses, HSG sectors, tracks, MSCDEX requests and answers, volume, repeats, the sound card's CD input (BLASTER, SB16 and SB Pro mixers) | `dos-cd.h` |
 | `DosBlasterTestSuite` | the BLASTER variable (port, IRQ, DMA channels, MIDI port, type), MIDI port numbers, the DSP's 8-bit time constant and 16-bit rate | `dos-blaster.h` |
+| `DosDmaClockTestSuite` | the Sound Blaster's DMA: the controller's count to a place in the ring, following it round the ring (laps the clock saw but the program did not), noticing a card that stopped; the mixer's clock without a card | `dos-dmaclock.h` |
 | `DosScanCodesTestSuite` | IRQ 1 scan codes: prefixes, releases, repeats, modifier and lock keys; key codes by place; the BIOS keyboard fallback | `dos-scancodes.h` |
 | `DosVesaTestSuite` | VESA BIOS blocks: mode fields, usable modes, high colour fields, display pages, memory banks | `dos-vesainfo.h` |
 | `DosDitherTestSuite` | 256-colour dithering: palette, tables, the line converter against the plain one; the overlay's fixed 3-3-2 palette | `dos-dither.h` |
 | `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists) | `dos-modes.h` |
 | `DosNamesTestSuite` | 8.3 names, CONFIG.SYS country to language | `dos-names.h` |
-| `DosNetParseTestSuite` | dotted addresses and port byte order | `dos-netparse.h` |
+| `DosNetParseTestSuite` | dotted addresses in network byte order, as SDL_net holds them | `dos-netparse.h` |
 | `DosJoystickTestSuite` | game port buttons, calibration, cursor speed | `dos-joystick.h` |
 | `DosFileSysTestSuite` | engine data found by its long name when DOS lists it under the 8.3 one; savegames with long names found, written and renamed with and without a long file name driver, in both directions; savegames already in the current folder (the empty save path) listed (a folder made for the test, `test/system/temp_directory.h`) | `dos-filesys.h` |
 | `DosBannerTestSuite` | the message shown while a game starts: its size on each resolution, broken into lines that fit the screen | `dos-banner.h` |
@@ -36,7 +37,7 @@ folder with a backend that needs no screen. Make it from the source folder with:
 `common.sh` puts a link called `python` in the tree's `bin/`.
 
     sh host-suite.sh DosCdTestSuite 8     # one suite: builds the runner, checks it has at least 8 tests, runs them
-    sh host-make-test.sh                  # `make test`: all of ScummVM's tests and these; MIN_TESTS (default 654) must run
+    sh host-make-test.sh                  # `make test`: all of ScummVM's tests and these; MIN_TESTS (default 679) must run
     sh check-dos-suites.sh                # every DOS suite above exists, is part of the build, has enough tests and passes
 
 ## Runtime tests (DOSBox-X)

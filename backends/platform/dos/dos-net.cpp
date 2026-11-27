@@ -190,26 +190,8 @@ static bool startStack() {
 
 static char g_dottedText[20];
 
-static const char *dotted(Uint32 a, Uint32 b, Uint32 c, Uint32 d) {
-	dosFormatDotted(g_dottedText, sizeof(g_dottedText), (unsigned)a, (unsigned)b, (unsigned)c, (unsigned)d);
-	return g_dottedText;
-}
-
-/** 4 numbers separated by dots, or false. */
-static bool parseDotted(const char *text, Uint32 &host) {
-	uint32_t parsed;
-	if (!dosParseDotted(text, parsed))
-		return false;
-	host = parsed;
-	return true;
-}
-
-static Uint16 swap16(Uint16 value) {
-	return dosSwap16(value);
-}
-
 int SDLNet_ResolveHost(IPaddress *address, const char *host, Uint16 port) {
-	address->port = swap16(port);
+	address->port = TO_BE_16(port);
 
 	// No name: any address of this machine (for a server). Needs no stack.
 	if (host == nullptr) {
@@ -217,7 +199,7 @@ int SDLNet_ResolveHost(IPaddress *address, const char *host, Uint16 port) {
 		return 0;
 	}
 
-	if (parseDotted(host, address->host))
+	if (dosParseDotted(host, address->host))   // 4 numbers separated by dots
 		return 0;
 
 	// A name: ask the name server
@@ -243,11 +225,11 @@ const char *SDLNet_ResolveIP(const IPaddress *ip) {
 			setError("the stack has no IP address");
 			return nullptr;
 		}
-		return dotted((my_ip_addr >> 24) & 0xFF, (my_ip_addr >> 16) & 0xFF, (my_ip_addr >> 8) & 0xFF, my_ip_addr & 0xFF);
+		host = TO_BE_32(my_ip_addr);   // Watt-32 holds it in host byte order
 	}
 
-	// In network order: the first number is the lowest byte
-	return dotted(host & 0xFF, (host >> 8) & 0xFF, (host >> 16) & 0xFF, (host >> 24) & 0xFF);
+	dosFormatHost(g_dottedText, sizeof(g_dottedText), host);
+	return g_dottedText;
 }
 
 static bool makeNonBlocking(int fd) {

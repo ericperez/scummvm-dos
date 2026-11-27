@@ -129,7 +129,8 @@ that builds it) had two faults:
 * **Unit tests** (`make test` in a native build tree; the DOS port's are in `test/backends/dos/`): the parts of the port
   that are arithmetic and byte layouts are kept in headers with no DOS calls in them, so they run on any machine:
   keyboard layouts (`dos-keymap.h`, `dos-bioskey.h`, `dos-codepages.h`), scan codes and key codes (`dos-scancodes.h`),
-  CD audio (`dos-cd.h`), the BLASTER variable and the DSP's sample rates (`dos-blaster.h`), dithering and the overlay
+  CD audio (`dos-cd.h`), the BLASTER variable and the DSP's sample rates (`dos-blaster.h`), where the
+  Sound Blaster's DMA has got to and the mixer's clock without a card (`dos-dmaclock.h`), dithering and the overlay
   palette (`dos-dither.h`, including a check that the unrolled line converter gives the same bytes as the plain one),
   VESA mode information, display pages and banks (`dos-vesainfo.h`), video mode choice (`dos-modes.h`), 8.3 names and
   country languages (`dos-names.h`), dotted addresses (`dos-netparse.h`), the joystick (`dos-joystick.h`), the start-up

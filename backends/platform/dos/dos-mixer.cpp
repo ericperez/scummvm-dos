@@ -33,7 +33,7 @@
 DOSMixerManager::DOSMixerManager() :
 	MixerManager(),
 	_hardware(false), _rate(22050), _writePos(0), _lastTick(0),
-	_lastPos(0), _lastPollTick(0), _playAbs(0), _writtenAbs(0), _underruns(0), _stuckSince(0) {
+	_clock(), _writtenAbs(0), _underruns(0) {
 	memset(_mixBuf, 0, sizeof(_mixBuf));
 	memset(_outBuf, 0x80, sizeof(_outBuf));
 }
@@ -74,11 +74,9 @@ void DOSMixerManager::init() {
 
 		// Start filling a little ahead of wherever the card is by now (it
 		// has been playing silence since init() started it)
-		_lastPos = _sb.getPlayPosition();
-		_playAbs = 0;
+		dosDmaClockStart(_clock, SoundBlaster::kRingFrames, _rate, UCLOCKS_PER_SEC, _sb.getPlayPosition(), (uint64)uclock());
 		_writtenAbs = kResyncMargin;
-		_writePos = (_lastPos + kResyncMargin) % SoundBlaster::kRingFrames;
-		_lastPollTick = _stuckSince = (uint64)uclock();
+		_writePos = (_clock.lastPos + kResyncMargin) % SoundBlaster::kRingFrames;
 	} else {
 		_rate = 22050;
 		_lastTick = (uint64)uclock();
@@ -157,46 +155,31 @@ void DOSMixerManager::fallBackToNull(const char *why) {
 void DOSMixerManager::updateHardware() {
 	const unsigned size = SoundBlaster::kRingFrames;
 
-	unsigned pos = _sb.getPlayPosition();
-	uint64 now = (uint64)uclock();
+	const unsigned pos = _sb.getPlayPosition();
 
-	// uclock() can step back a little: never let time run backwards
-	if (now < _lastPollTick)
-		now = _lastPollTick;
-	const uint64 sinceLast = now - _lastPollTick;
-
-	// How far the card has played since the last call, with the clock counting whole rings
-	const unsigned moved = (pos + size - _lastPos) % size;
-	const uint64 expected = sinceLast * _rate / UCLOCKS_PER_SEC;
-	const uint64 laps = expected > moved ? (expected - moved + size / 2) / size : 0;
-	_playAbs += moved + laps * size;
-
-	// A card that stops playing would leave speech waiting forever: go on by the clock
-	if (moved != 0 || sinceLast > UCLOCKS_PER_SEC / 10) {
-		_stuckSince = now;
-	} else if (now - _stuckSince > UCLOCKS_PER_SEC * 4 / 10) {
+	// How far the card has played since the last call (see dos-dmaclock.h). A card that stops
+	// playing would leave speech waiting forever: go on by the clock.
+	if (!dosDmaClockPoll(_clock, pos, (uint64)uclock())) {
 		fallBackToNull("the Sound Blaster's DMA stopped advancing");
 		return;
 	}
-	_lastPos = pos;
-	_lastPollTick = now;
 
 	// The card ran past everything written (the program was busy): restart just ahead of it
-	if (_writtenAbs < _playAbs) {
+	if (_writtenAbs < _clock.played) {
 		_underruns++;
 		if (_underruns <= 5)
 			warning("DOS audio: the program fell behind the sound card by about %u ms; resynchronizing",
-			        (unsigned)((_playAbs - _writtenAbs) * 1000 / _rate));
+			        (unsigned)((_clock.played - _writtenAbs) * 1000 / _rate));
 
 		// Without the interrupt handler old sound is still in the ring
 		if (!_sb.isIrqDriven())
 			_sb.clearRing();
 
-		_writtenAbs = _playAbs + kResyncMargin;
+		_writtenAbs = _clock.played + kResyncMargin;
 		_writePos = (pos + kResyncMargin) % size;
 	}
 
-	unsigned ahead = (unsigned)(_writtenAbs - _playAbs);
+	unsigned ahead = (unsigned)(_writtenAbs - _clock.played);
 
 	// Refill in decent-sized pieces: each call to the mixer has a fixed cost
 	if (ahead + kMinRefill > kTargetAhead)
@@ -227,20 +210,8 @@ void DOSMixerManager::updateHardware() {
 void DOSMixerManager::updateNull() {
 	// No card: still run the mixer at the speed real audio would play, so
 	// that anything waiting for a sound to finish does not stall or race.
-	uint64 now = (uint64)uclock();
-	uint64 due = (now - _lastTick) * _rate / UCLOCKS_PER_SEC;
-	if (!due)
-		return; // keep the time we have not used yet for the next call
-
-	// After a long stall, do not try to catch up on seconds of audio at once
-	const uint64 maxCatchUp = _rate / 4;
-	if (due > maxCatchUp) {
-		due = maxCatchUp;
-		_lastTick = now;
-	} else {
-		_lastTick += due * UCLOCKS_PER_SEC / _rate;
-	}
-
+	// After a long stall it does not try to catch up on seconds of audio at once
+	uint64 due = dosNullFramesDue(_lastTick, (uint64)uclock(), _rate, UCLOCKS_PER_SEC);
 	while (due) {
 		unsigned chunk = due > (unsigned)kChunkFrames ? (unsigned)kChunkFrames : (unsigned)due;
 		produce(chunk, _outBuf);
