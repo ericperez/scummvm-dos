@@ -17,11 +17,13 @@
 #   smoke           the launcher comes up and draws
 #   nodpmi          without dist's CWSDPMI.EXE the program cannot start (so the other tests ran on it)
 #   sdl             the SDL3 build: VESA video, Sound Blaster audio, the launcher draws, a clean exit
+#   nomouse         no mouse driver: one warning in the log, a reminder on leaving, a clean exit (nomousesdl: the same
+#                   on the SDL3 build)
 #
 # Prints "DOSTEST <name> OK". Environment:
 #   DOS_BUILD       the build whose dist/ is run (default: build-dos-stable)
-#   TESTBED_BUILD   for plugadd, plugsmoke, mpt and mptdxe (default: build-dos-testbed)
-#   SDL_BUILD       for sdl and mptdxesdl (default: build-dos-sdl-testbed)
+#   TESTBED_BUILD   for plugadd, plugsmoke, mpt, mptdxe and nomouse (default: build-dos-testbed)
+#   SDL_BUILD       for sdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
 #   KEEP=1          keep the run folder afterwards
 . "$(dirname "$0")/common.sh"
 
@@ -33,8 +35,8 @@ DOS_BUILD=${DOS_BUILD:-$SRC/build-dos-stable}
 case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
-  plugadd|plugsmoke|mpt|mptdxe) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl|mptdxesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  plugadd|plugsmoke|mpt|mptdxe|nomouse) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
+  sdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -270,6 +272,7 @@ case "$NAME" in
     SHOTS=$(ls "$RUN" | grep -ci '^shot.*bmp$')
     [ "$SHOTS" -ge 3 ] || fail "only $SHOTS screenshots: the engine did not run"
     echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    echo "$LOG" | grep -q "no mouse driver" && fail "a no-mouse-driver warning, although DOSBox-X has a mouse driver"
     # Testbed's first frames are mostly black: some screenshot must show something
     NONBLACK=$(python3 -c "
 import sys
@@ -418,12 +421,30 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     echo "$LOG" | grep -q 'Using SDL Video Driver "vesa"' || fail "SDL's VESA video driver was not used"
     echo "$LOG" | grep -q 'Using SDL Audio Driver "soundblaster"' || fail "SDL's Sound Blaster audio driver was not used"
     echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    echo "$LOG" | grep -q "no mouse driver" && fail "a no-mouse-driver warning, although DOSBox-X has a mouse driver"
     SHOTS=$(ls "$RUN" | grep -ci '^shot.*png$')
     [ "$SHOTS" -ge 3 ] || fail "only $SHOTS screenshots: the launcher did not run"
     # A blank screen compresses to almost nothing; the launcher's picture does not
     BIG=$(find "$RUN" -iname 'SHOT*.PNG' -size +8k | wc -l | tr -d ' ')
     [ "$BIG" -ge 1 ] || fail "every screenshot is blank"
     ok "the launcher ran on SDL3, $SHOTS screenshots"
+    ;;
+
+  nomouse|nomousesdl)
+    # DOSBox-X's own mouse driver switched off (nomouse: the own backend's Testbed build, nomousesdl: SDL3's): the
+    # program says so once in the log and again on leaving (in text mode, where it can be read), and still runs and
+    # ends cleanly
+    write_conf "$CONF" 64
+    printf '[dos]\nint33=false\n' >> "$CONF"
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 90 -c "mount c $RUN" -c "c:" \
+      -c "set SCUMMVM_DOS_QUITAT=8" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE > OUT.TXT' -c "exit"
+    exited_cleanly
+    WARNINGS=$(program_log | grep -c "WARNING: DOS: no mouse driver is loaded")
+    [ "$WARNINGS" = 1 ] || fail "$WARNINGS no-mouse-driver warnings in the log, not 1"
+    tr -d '\r' < "$RUN/OUT.TXT" | grep -q "^ScummVM: no mouse driver is loaded" || fail "no reminder on leaving"
+    ok "no mouse driver: one warning in the log, a reminder on leaving, a clean exit"
     ;;
 
   *)

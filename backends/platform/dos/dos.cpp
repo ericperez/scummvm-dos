@@ -57,6 +57,7 @@
 #include "backends/platform/dos/dos-input.h"
 #include "backends/platform/dos/dos-keyboard.h"
 #include "backends/platform/dos/dos-mixer.h"
+#include "backends/platform/dos/dos-mouse.h"
 #include "backends/platform/dos/dos-openmpt.h"
 #ifdef USE_SDL_NET
 	#include "backends/platform/dos/dos-net.h"
@@ -194,6 +195,9 @@ void OSystem_DOS::initBackend() {
 	_startClock = uclock();
 
 	openLog();
+
+	// Said now, while the screen is still in text mode, and again on leaving
+	dosCheckMouseDriver();
 
 	// The 320x200 menu's bitmap font is distorted when scaled
 	ConfMan.registerDefault("gui_disable_fixed_font_scaling", true);
@@ -547,6 +551,7 @@ void OSystem_DOS::quit() {
 	openLog();
 	delete _logger;
 	_logger = nullptr;
+	dosNoMouseDriverReminder();
 	if (_lastError[0]) {
 		fputs(_lastError, stderr);
 		fflush(stderr);
@@ -608,6 +613,10 @@ int main(int argc, char *argv[]) {
 	// Invoke the actual ScummVM main entry point:
 	int res = scummvm_main(argc, argv);
 	g_system->destroy();
+
+	// Leaving the launcher comes here rather than through OSystem_DOS::quit()
+	dosNoMouseDriverReminder();
+
 	return res;
 }
 

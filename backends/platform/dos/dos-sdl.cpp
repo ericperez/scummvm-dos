@@ -41,6 +41,7 @@
 #include "backends/platform/dos/dos-cdaudio.h"
 #include "backends/platform/dos/dos-files.h"
 #include "backends/platform/dos/dos-modes.h"
+#include "backends/platform/dos/dos-mouse.h"
 #include "backends/platform/dos/dos-net.h"
 #include "backends/platform/dos/dos-openmpt.h"
 #include "backends/platform/dos/dos-sdl.h"
@@ -373,6 +374,10 @@ void OSystem_SDL_DOS::initBackend() {
 	// Savegames whose names do not fit 8.3 are found with or without a long file name driver
 	_savefileManager = dosCreateSaveFileManager();
 
+	// Without a mouse driver SDL goes without a mouse and says nothing: said now, while the screen is still in
+	// text mode, and again on leaving
+	dosCheckMouseDriver();
+
 	// 2048-frame device buffers (SDL's default is 1024), so a game loop that polls only every 100 ms or so
 	// plays without breaks, at the price of more latency (SDL_AUDIO_DEVICE_SAMPLE_FRAMES overrides it)
 	SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "2048");
@@ -474,6 +479,7 @@ void OSystem_SDL_DOS::leave(int status) {
 	char lastError[sizeof(_lastError)];
 	memcpy(lastError, _lastError, sizeof(lastError));
 	destroy();
+	dosNoMouseDriverReminder();
 	if (lastError[0]) {
 		fputs(lastError, stderr);
 		fflush(stderr);

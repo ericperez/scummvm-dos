@@ -27,6 +27,7 @@
 
 #include <sys/nearptr.h>
 
+#include "backends/platform/dos/dos-mouse.h"
 #include "backends/platform/dos/dos-sdl.h"
 #include "base/main.h"
 
@@ -55,6 +56,9 @@ int main(int argc, char *argv[]) {
 
 	// Free OSystem
 	g_system->destroy();
+
+	// Leaving the launcher comes here rather than through OSystem_SDL_DOS::quit()
+	dosNoMouseDriverReminder();
 
 	return res;
 }

@@ -8,6 +8,7 @@ MODULE_OBJS := \
 	dos-cdaudio.o \
 	dos-files.o \
 	dos-midi.o \
+	dos-mouse.o \
 	dos-opl.o \
 	dos-vesa.o
 
@@ -23,6 +24,7 @@ MODULE_OBJS := \
 	dos-keyboard.o \
 	dos-midi.o \
 	dos-mixer.o \
+	dos-mouse.o \
 	dos-opl.o \
 	dos-sb.o \
 	dos-vesa.o

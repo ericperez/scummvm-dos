@@ -61,12 +61,14 @@ Each test works in `build-dos-tests/run-<name>`, in a clean copy of the distribu
 | `plugload` | every engine plug-in, and the detection plug-in, loaded and unloaded three times: found by engine id, one in memory at a time, the heap back to where it was; the program then ends with status 0 | `SCUMMVM_DOS_PLUGINTEST` |
 | `plugall` | the stable plug-in build (`PLUGIN_BUILD`): every one of its engine plug-ins (about 110) loads and unloads once, found by its file name, and the heap comes back to where it was | `SCUMMVM_DOS_PLUGINTEST=all` |
 | `plugadd` | `--add --path=... --recursive` with no game data: a folder holding only an empty file `TESTBED` is found through the detection plug-in, added as `testbed`, and the plug-in is unloaded again (the `testbed` build, `TESTBED_BUILD`) | `SCUMMVM_DOS_PLUGLOG` |
-| `plugsmoke` | with no game data: the Testbed engine runs through its plug-in, draws, and is left from inside it with the plug-in unloaded | `SCUMMVM_DOS_QUITAT` |
+| `plugsmoke` | with no game data: the Testbed engine runs through its plug-in, draws, and is left from inside it with the plug-in unloaded; there is no warning about a missing mouse driver | `SCUMMVM_DOS_QUITAT` |
 | `smoke` | the launcher comes up and draws | `SCUMMVM_DOS_SHOTS` |
 | `mpt` | libopenmpt on four module formats: a MOD, an S3M, an XM and an IT file (`gen-test-mod.py`) each open through ScummVM's tracker stream (`audio/mods/universaltracker.cpp`) and give sound, as a Testbed game starts (`build-dos-testbed`, or `TESTBED_BUILD`) | `SCUMMVM_DOS_MPTTEST=file;file...` |
 | `mptdxe` | tracker music in the plug-in build (`build-dos-testbed`, or `TESTBED_BUILD`) is `OPENMPT.DXE`, next to the program and not taken for a plug-in: the launcher alone does not load it; a Testbed game does, a MOD file (`gen-test-mod.py`) plays through it with sound, and it is unloaded after the engine's plug-in; the program ends with status 0 | `SCUMMVM_DOS_PLUGLOG`, `SCUMMVM_DOS_MPTTEST=file` |
 | `mptdxesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
-| `sdl` | the SDL3 build (`--backend=sdl`, `build-dos-sdl-testbed`, or `SDL_BUILD`): SDL's VESA video and Sound Blaster audio drivers start, the launcher draws, the program is left cleanly | `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_QUITAT` |
+| `sdl` | the SDL3 build (`--backend=sdl`, `build-dos-sdl-testbed`, or `SDL_BUILD`): SDL's VESA video and Sound Blaster audio drivers start, the launcher draws, the program is left cleanly, and there is no warning about a missing mouse driver | `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_QUITAT` |
+| `nomouse` | with DOSBox-X's own mouse driver off (`int33=false`; the `testbed` build, or `TESTBED_BUILD`): one WARNING in the log that no mouse driver is loaded, the same reminder printed again once the program has left, and the program still ends with status 0 | `SCUMMVM_DOS_QUITAT` |
+| `nomousesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 
 `SCUMMVM_DOS_TESTEXIT=1` makes the program leave as soon as the self-tests have run.
 
