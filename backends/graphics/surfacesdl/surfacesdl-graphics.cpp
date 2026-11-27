@@ -680,10 +680,27 @@ uint SurfaceSdlGraphicsManager::getDefaultScaleFactor() const {
 #endif
 }
 
+#ifdef USE_DOS_SDL
+// In backends/platform/dos/dos-sdl.cpp: the launcher's resolution, chosen as the dos backend does
+bool dosGuiResolution(uint &width, uint &height);
+#endif
+
 bool SurfaceSdlGraphicsManager::setScaler(uint mode, int factor) {
 	Common::StackLock lock(_graphicsMutex);
 
 	assert(_transactionMode == kTransactionActive);
+
+#ifdef USE_DOS_SDL
+	// The launcher keeps the factor initSize() gave it, rather than one (such as the default 2x) that needs a
+	// video mode larger than the one chosen for it, which the card may not have in 16 or 32 bits
+	uint guiWidth, guiHeight;
+	if (!g_engine && dosGuiResolution(guiWidth, guiHeight) && _videoMode.screenWidth == (int)guiWidth &&
+	        _videoMode.screenHeight == (int)guiHeight && defaultGraphicsModeConfig()) {
+		factor = MAX<int>(1, (factor == -1 ? (int)getDefaultScaleFactor() : factor) * 320 / (int)guiWidth);
+		if (!_scalerPlugins[mode]->get<ScalerPluginObject>().hasFactor(factor))
+			mode = getDefaultScaler();
+	}
+#endif
 
 	if (_oldVideoMode.setup && _oldVideoMode.scalerIndex == mode && _oldVideoMode.scaleFactor == factor)
 		return true;
@@ -812,11 +829,6 @@ bool SurfaceSdlGraphicsManager::setStretchMode(int mode) {
 int SurfaceSdlGraphicsManager::getStretchMode() const {
 	return _videoMode.stretchMode;
 }
-#endif
-
-#ifdef USE_DOS_SDL
-// In backends/platform/dos/dos-sdl.cpp: the launcher's resolution, chosen as the dos backend does
-bool dosGuiResolution(uint &width, uint &height);
 #endif
 
 void SurfaceSdlGraphicsManager::getDefaultResolution(uint &w, uint &h) {
@@ -1228,7 +1240,8 @@ bool SurfaceSdlGraphicsManager::hotswapGFXMode() {
 }
 
 #ifdef USE_DOS_SDL
-// In dos-sdl.cpp: an RGB565 video mode for the screen, and the start-up banner (drawn until the game draws)
+// In dos-sdl.cpp: an RGB565 video mode for the screen, and the start-up banner (drawn until the game draws or
+// the video mode changes)
 bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight);
 bool dosBannerDraw(SDL_Surface *surface);
 bool dosBannerClear();
@@ -3155,6 +3168,10 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 #ifdef USE_DOS_SDL
 	// SDL's DOS driver sets the chosen video mode only for a fullscreen window
 	createWindowFlags |= SDL_WINDOW_FULLSCREEN;
+
+	// The banner (such as the game that is starting) is blanked before the video mode changes
+	if (dosBannerErase(_window))
+		SDL_UpdateWindowSurface(_window->getSDLWindow());
 #endif
 
 	if (!createOrUpdateWindow(width, height, createWindowFlags)) {
@@ -3195,6 +3212,13 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		if (windowSurface->format != SDL_PIXELFORMAT_RGB565)
 			warning("DOS: the screen is a %s surface: no RGB565 video mode of %dx%d or more", SDL_GetPixelFormatName(windowSurface->format), width, height);
 
+		// The scalers and the launcher draw in 16 or 32 bits only: fail rather than draw into another depth
+		const int bytesPerPixel = SDL_BYTESPERPIXEL(windowSurface->format);
+		if (bytesPerPixel != 2 && bytesPerPixel != 4) {
+			warning("DOS: no %dx%d video mode in 16 or 32 bits", width, height);
+			return nullptr;
+		}
+
 		// What the driver sends to video memory is the part of the surface that is inside the mode
 		int visibleW = windowSurface->w, visibleH = windowSurface->h;
 		if (modeW > 0 && modeH > 0) {
@@ -3206,14 +3230,10 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		handleResize(_windowWidth, _windowHeight);
 
 		SDL_FillSurfaceRect(windowSurface, nullptr, 0);
-		// A banner for the game that is starting stays through its change of video mode
-		if (dosBannerDraw(windowSurface))
-			SDL_UpdateWindowSurface(sdlWindow);
 		debug(1, "DOS: screen %dx%d in a %s surface of %dx%d, %dx%d of it shown; game area %d,%d %dx%d, overlay area %d,%d %dx%d", width, height,
 		      SDL_GetPixelFormatName(windowSurface->format), windowSurface->w, windowSurface->h, visibleW, visibleH,
 		      _gameDrawRect.left, _gameDrawRect.top, _gameDrawRect.width(), _gameDrawRect.height(),
 		      _overlayDrawRect.left, _overlayDrawRect.top, _overlayDrawRect.width(), _overlayDrawRect.height());
-		const int bytesPerPixel = SDL_BYTESPERPIXEL(windowSurface->format);
 		_dosViewX = visibleW > width ? (visibleW - width) / 2 : 0;
 		_dosViewY = visibleH > height ? (visibleH - height) / 2 : 0;
 		return SDL_CreateSurfaceFrom(MIN(width, visibleW), MIN(height, visibleH), windowSurface->format,

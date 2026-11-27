@@ -39,6 +39,7 @@ public:
 	void logMessage(LogMessageType::Type type, const char *message) override;
 
 	void quit() override;
+	void fatalError() override;
 
 	void engineInit() override;
 
@@ -64,6 +65,9 @@ private:
 	Common::String _earlyLog;
 	bool _earlyLogDone;
 	void flushEarlyLog();
+
+	/** quit() and fatalError(): shut down and leave with this exit status */
+	void leave(int status);
 };
 
 #endif

@@ -445,6 +445,14 @@ void OSystem_SDL_DOS::engineInit() {
 }
 
 void OSystem_SDL_DOS::quit() {
+	leave(0);
+}
+
+void OSystem_SDL_DOS::fatalError() {
+	leave(1);
+}
+
+void OSystem_SDL_DOS::leave(int status) {
 	// Clean up and leave through _exit(): exit() would run atexit handlers of unloaded plug-ins
 	dosOplSilence();
 	#ifdef USE_SDL_NET
@@ -459,7 +467,7 @@ void OSystem_SDL_DOS::quit() {
 		fflush(stderr);
 	}
 	fflush(nullptr);
-	_exit(0);
+	_exit(status);
 }
 
 void OSystem_SDL_DOS::addSysArchivesToSearchSet(Common::SearchSet &s, int priority) {
