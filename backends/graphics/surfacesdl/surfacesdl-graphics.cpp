@@ -1723,7 +1723,7 @@ bool SurfaceSdlGraphicsManager::saveScreenshot(const Common::Path &filename) con
 	bool success;
 
 #if SDL_VERSION_ATLEAST(3, 0, 0)
-	SDL_Palette *sdlPalette = SDL_CreateSurfacePalette(_hwScreen);
+	SDL_Palette *sdlPalette = SDL_GetSurfacePalette(_hwScreen);
 #else
 	SDL_Palette *sdlPalette = _hwScreen->format->palette;
 #endif
@@ -3413,7 +3413,11 @@ void SurfaceSdlGraphicsManager::SDL_UpdateRects(SDL_Surface *screen, int numrect
 
 int SurfaceSdlGraphicsManager::SDL_SetColors(SDL_Surface *surface, SDL_Color *colors, int firstcolor, int ncolors) {
 #if SDL_VERSION_ATLEAST(3, 0, 0)
-	SDL_Palette *palette = SDL_CreateSurfacePalette(surface);
+	// SDL_CreateSurfacePalette() gives the surface a new palette, all white, so it is made once: making it for
+	// each update would turn every colour outside the updated range white
+	SDL_Palette *palette = SDL_GetSurfacePalette(surface);
+	if (!palette && SDL_ISPIXELFORMAT_INDEXED(surface->format))
+		palette = SDL_CreateSurfacePalette(surface);
 	if (palette) {
 		return !SDL_SetPaletteColors(palette, colors, firstcolor, ncolors) ? 1 : 0;
 	}

@@ -23,6 +23,8 @@
 #   edidsdl         the SDL3 build: a 3x scale factor with a monitor that reports 800x600 (and a card with larger modes):
 #                   the launcher is 800x600 and the game is lowered to 2x, no video mode larger than the monitor is used
 #   edid            the dos backend: a monitor that reports 640x480 and dos_gui_mode=800x600: the menus use 640x480
+#   palsdl          the SDL3 build: after a palette update of colours 0-15 only, the other colours on the screen
+#                   stay as they were (not white)
 #   nomouse         no mouse driver: one warning in the log, a reminder on leaving, a clean exit (nomousesdl: the same
 #                   on the SDL3 build)
 #
@@ -42,7 +44,7 @@ case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
   plugadd|plugsmoke|mpt|mptdxe|nomouse) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl|rtlsdl|scalesdl|edidsdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  sdl|rtlsdl|scalesdl|edidsdl|palsdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -547,6 +549,24 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     echo "$LOG" | grep -q "DOSGFX: VESA mode 800x600" && fail "an 800x600 mode was set, larger than the monitor"
     echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
     ok "a monitor of 640x480: $(echo "$LOG" | grep -m1 'DOSGFX: menus use' | sed 's/.*DOSGFX: //; s/!$//')"
+    ;;
+
+  palsdl)
+    # The SDL3 build (SurfaceSdlGraphicsManager): a 320x200 screen in 256 colours filled with colour 200, then a
+    # palette update of colours 0-15 only, as a SCUMM game makes every frame. The screen after the palette (a
+    # screenshot) must still show colour 200 as it was: SDL3 gives a surface a new, all-white palette each time
+    # one is made for it, so a palette made for each update turned every colour outside the update white
+    write_conf "$CONF" 64
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 90 -c "mount c $RUN" -c "c:" \
+      -c "set SCUMMVM_DOS_PALTEST=1" -c "set SCUMMVM_DOS_QUITAT=8" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -d1 > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "PALTEST: FAILED" && fail "$(echo "$LOG" | grep -m1 'PALTEST: FAILED' | sed 's/.*PALTEST: FAILED: //')"
+    echo "$LOG" | grep -q "PALTEST: OK" || fail "the palette self-test did not run"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "$(echo "$LOG" | grep 'PALTEST: OK' | sed 's/.*PALTEST: OK //')"
     ;;
 
   nomouse|nomousesdl)

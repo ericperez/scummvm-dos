@@ -50,9 +50,16 @@
 #include "backends/saves/default/default-saves.h"
 #include "common/config-manager.h"
 #include "common/events.h"
+#include "common/fs.h"
 #include "common/str-array.h"
 #include "engines/engine.h"
+#include "graphics/paletteman.h"
 #include "gui/gui-manager.h"
+#ifdef USE_PNG
+#include "image/png.h"
+#else
+#include "image/bmp.h"
+#endif
 
 void dosOplSilence();
 
@@ -466,6 +473,71 @@ static void SDLCALL dosSdlLog(void *userdata, int category, SDL_LogPriority prio
 	g_system->logMessage(type, (Common::String("SDL: ") + message + "\n").c_str());
 }
 
+/**
+ * Self-test (SCUMMVM_DOS_PALTEST=1): a palette update of a few colours, such as a SCUMM game makes every
+ * frame, must leave the other colours on the screen as they were. Logs "PALTEST: OK" or "PALTEST: FAILED".
+ *
+ * @param gfx  the graphics manager, whose screenshot (the screen after the palette) is checked
+ */
+static void dosPaletteSelfTest(SdlGraphicsManager *gfx) {
+	enum {
+		kColour = 200,      // what the screen is filled with
+		kUpdated = 16,      // the colours updated afterwards: 0 to 15
+		kTolerance = 8      // a 16-bit screen keeps 5 or 6 bits of each component
+	};
+
+	g_system->beginGFXTransaction();
+	g_system->initSize(320, 200);
+	if (g_system->endGFXTransaction() != OSystem::kTransactionSuccess) {
+		warning("PALTEST: FAILED: no 320x200 screen");
+		return;
+	}
+
+	byte palette[256 * 3];
+	for (int i = 0; i < 256; i++) {
+		palette[i * 3 + 0] = i;
+		palette[i * 3 + 1] = 255 - i;
+		palette[i * 3 + 2] = 0x80;
+	}
+	g_system->getPaletteManager()->setPalette(palette, 0, 256);
+	g_system->fillScreen(kColour);
+	g_system->updateScreen();
+
+	// Colours 0 to 15 change; colour kColour does not
+	for (int i = 0; i < kUpdated * 3; i++)
+		palette[i] ^= 0xFF;
+	g_system->getPaletteManager()->setPalette(palette, 0, kUpdated);
+	g_system->updateScreen();
+
+	const Common::Path name("PALTEST.PNG");
+	if (!gfx->saveScreenshot(name)) {
+		warning("PALTEST: FAILED: no screenshot");
+		return;
+	}
+	Common::SeekableReadStream *stream = Common::FSNode(name).createReadStream();
+	#ifdef USE_PNG
+	Image::PNGDecoder decoder;
+	#else
+	Image::BitmapDecoder decoder;
+	#endif
+	const bool loaded = stream && decoder.loadStream(*stream);
+	delete stream;
+	const Graphics::Surface *shot = loaded ? decoder.getSurface() : nullptr;
+	if (!shot || shot->format.isCLUT8()) {
+		warning("PALTEST: FAILED: the screenshot cannot be read");
+		return;
+	}
+
+	byte r, g, b;
+	shot->format.colorToRGB(shot->getPixel(shot->w / 2, shot->h / 2), r, g, b);
+	const byte *want = palette + kColour * 3;
+	if (ABS(r - want[0]) > kTolerance || ABS(g - want[1]) > kTolerance || ABS(b - want[2]) > kTolerance)
+		warning("PALTEST: FAILED: colour %d is %d,%d,%d on the screen after colours 0-%d changed, not %d,%d,%d",
+		        kColour, r, g, b, kUpdated - 1, want[0], want[1], want[2]);
+	else
+		warning("PALTEST: OK colour %d is %d,%d,%d on the screen after colours 0-%d changed", kColour, r, g, b, kUpdated - 1);
+}
+
 void OSystem_SDL_DOS::initBackend() {
 	SDL_SetLogOutputFunction(dosSdlLog, nullptr);
 
@@ -500,6 +572,11 @@ void OSystem_SDL_DOS::initBackend() {
 		_rtlAtMs = (uint32)atoi(rtl) * 1000;
 	if (const char *quit = getenv("SCUMMVM_DOS_QUITAT"))
 		_quitAtMs = (uint32)atoi(quit) * 1000;
+
+	if (getenv("SCUMMVM_DOS_PALTEST")) {
+		if (SdlGraphicsManager *gfx = dynamic_cast<SdlGraphicsManager *>(_graphicsManager))
+			dosPaletteSelfTest(gfx);
+	}
 }
 
 void OSystem_SDL_DOS::delayMillis(uint msecs) {
