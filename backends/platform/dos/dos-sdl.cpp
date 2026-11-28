@@ -446,6 +446,9 @@ static void SDLCALL dosSdlLog(void *userdata, int category, SDL_LogPriority prio
 void OSystem_SDL_DOS::initBackend() {
 	SDL_SetLogOutputFunction(dosSdlLog, nullptr);
 
+	// The 320x200 menu's bitmap font is distorted when scaled, as in the dos backend
+	ConfMan.registerDefault("gui_disable_fixed_font_scaling", true);
+
 	// Savegames whose names do not fit 8.3 are found with or without a long file name driver
 	_savefileManager = dosCreateSaveFileManager();
 
