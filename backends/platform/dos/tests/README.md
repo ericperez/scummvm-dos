@@ -17,7 +17,7 @@ The suites are in `test/backends/dos/` (`test/module.mk` takes every `*.h` there
 | `DosScanCodesTestSuite` | IRQ 1 scan codes: prefixes, releases, repeats, modifier and lock keys; key codes by place; the BIOS keyboard fallback | `dos-scancodes.h` |
 | `DosVesaTestSuite` | VESA BIOS blocks: mode fields, usable modes, high colour fields, display pages, memory banks | `dos-vesainfo.h` |
 | `DosDitherTestSuite` | 256-colour dithering: palette, tables, the line converter against the plain one; the overlay's fixed 3-3-2 palette | `dos-dither.h` |
-| `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists) and the SDL build's scale factor and video modes | `dos-modes.h` |
+| `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists), the SDL build's scale factor and video modes, and which modes the monitor and the video memory can take | `dos-modes.h` |
 | `DosNamesTestSuite` | 8.3 names, CONFIG.SYS country to language | `dos-names.h` |
 | `DosNetParseTestSuite` | dotted addresses in network byte order, as SDL_net holds them | `dos-netparse.h` |
 | `DosJoystickTestSuite` | game port buttons, calibration, cursor speed | `dos-joystick.h` |
@@ -72,6 +72,8 @@ Each test works in `build-dos-tests/run-<name>`, in a clean copy of the distribu
 | `mptdxesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 | `sdl` | the SDL3 build (`--backend=sdl`, `build-dos-sdl-testbed`, or `SDL_BUILD`): SDL's VESA video and Sound Blaster audio drivers start, the launcher draws, the program is left cleanly, and there is no warning about a missing mouse driver | `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_QUITAT` |
 | `scalesdl` | the SDL3 build: `scale_factor=3` with the video modes above 800x600 hidden: the 800x600 launcher stays at 1x, the 320x200 Testbed game is lowered to 2x (640x400) instead of a 960x600 screen no mode holds, and the launcher comes back at 800x600; V-Sync is on | `SCUMMVM_DOS_MODE_MAX`, `SCUMMVM_DOS_RTL`, `SCUMMVM_DOS_QUITAT` |
+| `edidsdl` | the SDL3 build: `scale_factor=3` with a monitor that reports 800x600 (`SCUMMVM_DOS_EDID_SIZE`) on a card with modes up to 1280x1024: the launcher is 800x600, the 320x200 Testbed game is lowered to 2x (640x400) rather than 960x600 in a 1024x768 mode, the launcher comes back at 800x600, no video mode larger than 800x600 is set, and the log says why | `SCUMMVM_DOS_EDID_SIZE`, `SCUMMVM_DOS_RTL`, `SCUMMVM_DOS_QUITAT` |
+| `edid` | the dos backend (`build-dos-stable`, or `DOS_BUILD`): a monitor that reports 640x480 and menus configured for 800x600: the 800x600 mode is left out, the menus use 640x480 | `SCUMMVM_DOS_EDID_SIZE`, `SCUMMVM_DOS_GUI_MODE`, `SCUMMVM_DOS_QUITAT` |
 | `nomouse` | with DOSBox-X's own mouse driver off (`int33=false`; the `testbed` build, or `TESTBED_BUILD`): one WARNING in the log that no mouse driver is loaded, the same reminder printed again once the program has left, and the program still ends with status 0 | `SCUMMVM_DOS_QUITAT` |
 | `nomousesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 

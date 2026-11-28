@@ -87,6 +87,7 @@ DOSGraphicsManager::DOSGraphicsManager() :
 	_guiModeChosen = false;
 	_guiModeValid = false;
 	_guiW = _guiH = 0;
+	_fittingNoted = false;
 
 	#ifdef USE_RGB_COLOR
 	_physBpp = 1;
@@ -317,9 +318,16 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 	if (maxH > kGuiMaxHeight)
 		maxH = kGuiMaxHeight;
 
+	// What the monitor says it is, for the log (listFittingModes() leaves out the modes larger than that)
+	int nativeW = 0, nativeH = 0;
+	const char *monitorNote = nullptr;
+	const bool haveNative = VesaDisplay::monitorSize(nativeW, nativeH, &monitorNote);
+	if (*monitorNote)
+		_modeNotes.push_back(Common::String::format("DOSGFX: %s", monitorNote));
+
 	DosModeSize modes[64];
 	int vbeVersion = 0;
-	int count = VesaDisplay::listModes(modes, 64, &vbeVersion);
+	int count = listFittingModes(modes, 64, &vbeVersion);
 	if (!count) {
 		_modeNotes.push_back(Common::String::format("DOSGFX: no 256 colour VESA modes (VBE %d.%d); menus use VGA mode 13h",
 		                     vbeVersion >> 8, vbeVersion & 0xFF));
@@ -349,30 +357,7 @@ bool DOSGraphicsManager::chooseGuiMode(int &width, int &height) {
 				return true;
 			}
 		}
-		_modeNotes.push_back(Common::String::format("DOSGFX: this card has no %dx%d 256 colour mode; choosing one", explicitW, explicitH));
-	}
-
-	// What the monitor says it is
-	bool haveNative = false;
-	int nativeW = 0, nativeH = 0;
-	bool askMonitor = vbeVersion >= 0x0200;
-	if (ConfMan.hasKey("dos_gui_edid"))
-		askMonitor = askMonitor && ConfMan.getBool("dos_gui_edid");
-	if (const char *env = getenv("SCUMMVM_DOS_EDID"))
-		askMonitor = askMonitor && atoi(env) != 0;
-
-	const char *fake = getenv("SCUMMVM_DOS_EDID_SIZE");
-	if (fake && dosParseSize(fake, nativeW, nativeH)) {
-		haveNative = true;
-		_modeNotes.push_back(Common::String::format("DOSGFX: pretending the monitor reports %dx%d", nativeW, nativeH));
-	} else if (askMonitor) {
-		uint8 edid[128];
-		if (VesaDisplay::readEdid(edid) && dosEdidSize(edid, nativeW, nativeH)) {
-			haveNative = true;
-			_modeNotes.push_back(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
-		} else {
-			_modeNotes.push_back(Common::String::format("DOSGFX: the monitor does not report its size"));
-		}
+		_modeNotes.push_back(Common::String::format("DOSGFX: no %dx%d 256 colour mode that the card and the monitor can show; choosing one", explicitW, explicitH));
 	}
 
 	DosModeSize best;
@@ -417,6 +402,35 @@ bool DOSGraphicsManager::setLauncherMode() {
 		_guiModeValid = false; // do not try again
 	}
 	return setPhysicalMode(kVgaWidth, kVgaHeight);
+}
+
+int DOSGraphicsManager::listFittingModes(DosModeSize *modes, int maxCount, int *vbeVersion) {
+	const int count = VesaDisplay::listModes(modes, maxCount, vbeVersion);
+	int monitorW, monitorH;
+	const bool haveMonitor = VesaDisplay::monitorSize(monitorW, monitorH);
+	const long memory = (long)VesaDisplay::videoMemoryKB() * 1024;
+
+	Common::String refused;
+	int kept = 0;
+	for (int i = 0; i < count; i++) {
+		if (dosModeFits(modes[i].w, modes[i].h, 0, 1, haveMonitor, monitorW, monitorH, memory))
+			modes[kept++] = modes[i];
+		else
+			refused += Common::String::format(" %dx%d", modes[i].w, modes[i].h);
+	}
+	if (!_fittingNoted) {
+		_fittingNoted = true;
+		noteRefusedModes(refused, haveMonitor, monitorW, monitorH, memory);
+	}
+	return kept;
+}
+
+void DOSGraphicsManager::noteRefusedModes(const Common::String &refused, bool haveMonitor, int monitorW, int monitorH, long videoMemory) {
+	if (refused.empty())
+		return;
+	const Common::String monitor = haveMonitor ? Common::String::format("%dx%d", monitorW, monitorH) : Common::String("unknown");
+	const long memoryKB = videoMemory / 1024;
+	_modeNotes.push_back(Common::String::format("DOSGFX: modes too large for the monitor (%s) or the video memory (%ld KB):%s", monitor.c_str(), memoryKB, refused.c_str()));
 }
 
 void DOSGraphicsManager::restoreTextMode() {
@@ -597,7 +611,7 @@ OSystem::TransactionError DOSGraphicsManager::endGFXTransaction() {
 	if (_pendingW > kMaxWidth || _pendingH > kMaxHeight) {
 		DosModeSize modes[64];
 		DosModeSize best = { 0, 0 };
-		int count = VesaDisplay::listModes(modes, 64);
+		int count = listFittingModes(modes, 64);
 		if (!dosChooseGameMode(modes, count, _pendingW, _pendingH, kGuiMaxWidth, kGuiMaxHeight, best)) {
 			warning("DOSGFX: no 256 colour VESA mode holds a %ux%u screen", _pendingW, _pendingH);
 			return OSystem::kTransactionSizeChangeFailed;
@@ -1692,6 +1706,22 @@ void DOSGraphicsManager::listDirectModes() {
 		_directCount = kept;
 	}
 
+	// Only the modes the monitor and the video memory can take
+	int monitorW, monitorH;
+	const bool haveMonitor = VesaDisplay::monitorSize(monitorW, monitorH);
+	const long memory = (long)VesaDisplay::videoMemoryKB() * 1024;
+	Common::String refused;
+	int kept = 0;
+	for (int i = 0; i < _directCount; i++) {
+		const VesaDirectMode &m = _direct[i];
+		if (dosModeFits(m.width, m.height, m.pitch, 2, haveMonitor, monitorW, monitorH, memory))
+			_direct[kept++] = m;
+		else
+			refused += Common::String::format(" %dx%dx%d", m.width, m.height, m.bpp);
+	}
+	_directCount = kept;
+	noteRefusedModes(refused, haveMonitor, monitorW, monitorH, memory);
+
 	Common::String list;
 	for (int i = 0; i < _directCount && i < 24; i++)
 		list += Common::String::format(" %dx%dx%d", _direct[i].width, _direct[i].height, _direct[i].bpp);
@@ -1903,7 +1933,7 @@ OSystem::TransactionError DOSGraphicsManager::endDitherTransaction() {
 		modeH = kVgaHeight;
 	} else {
 		DosModeSize modes[64];
-		int count = VesaDisplay::listModes(modes, 64, nullptr);
+		int count = listFittingModes(modes, 64);
 		bool found = false;
 		modeW = modeH = 0;
 		for (int i = 0; i < count; i++) {

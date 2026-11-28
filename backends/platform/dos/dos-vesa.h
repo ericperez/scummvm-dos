@@ -38,6 +38,7 @@ struct VesaModeInfo;
 struct VesaDirectMode {
 	uint16_t width, height;
 	uint8_t bpp;                       ///< 15 or 16
+	uint16_t pitch;                    ///< bytes a scan line
 	uint8_t redSize, redPos;
 	uint8_t greenSize, greenPos;
 	uint8_t blueSize, bluePos;
@@ -83,6 +84,16 @@ public:
 	 * @return false if the card or the monitor does not answer.
 	 */
 	static bool readEdid(uint8_t *block);
+
+	/**
+	 * The largest size the monitor can show, found once: through readEdid() and dosEdidSize() on a VBE 2.0 card.
+	 * dos_gui_edid (or SCUMMVM_DOS_EDID) false/0 stops asking the monitor; SCUMMVM_DOS_EDID_SIZE=<width>x<height>
+	 * pretends it reported that size.
+	 *
+	 * @param note If not null, set to what was found, for the log.
+	 * @return false if the size is not known.
+	 */
+	static bool monitorSize(int &width, int &height, const char **note = nullptr);
 
 	/** The most display pages to use (1: no page flipping). Call before setting a mode. */
 	void setPageLimit(int pages) {

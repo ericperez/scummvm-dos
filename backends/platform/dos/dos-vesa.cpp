@@ -24,11 +24,14 @@
 
 #include <dpmi.h>
 #include <go32.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/movedata.h>
 
 #include "backends/platform/dos/dos-vesa.h"
 #include "backends/platform/dos/dos-vesainfo.h"
+#include "common/config-manager.h"
 
 // VBE calls pass data in DOS memory: DJGPP's transfer buffer, at __tb
 static void setTransferBuffer(__dpmi_regs &r) {
@@ -208,6 +211,45 @@ bool VesaDisplay::readEdid(uint8_t *block) {
 
 	dosmemget(__tb, 128, block);
 	return true;
+}
+
+// What monitorSize() found, once
+static bool g_monitorAsked = false, g_monitorKnown = false;
+static int g_monitorW = 0, g_monitorH = 0;
+static char g_monitorNote[80] = "";
+
+bool VesaDisplay::monitorSize(int &width, int &height, const char **note) {
+	if (!g_monitorAsked) {
+		g_monitorAsked = true;
+
+		uint16_t candidates[260];
+		int vbeVersion = 0;
+		readModeList(candidates, 260, &vbeVersion);
+		bool askMonitor = vbeVersion >= 0x0200;
+		if (ConfMan.hasKey("dos_gui_edid"))
+			askMonitor = askMonitor && ConfMan.getBool("dos_gui_edid");
+		if (const char *env = getenv("SCUMMVM_DOS_EDID"))
+			askMonitor = askMonitor && atoi(env) != 0;
+
+		const char *fake = getenv("SCUMMVM_DOS_EDID_SIZE");
+		if (fake && dosParseSize(fake, g_monitorW, g_monitorH)) {
+			g_monitorKnown = true;
+			snprintf(g_monitorNote, sizeof(g_monitorNote), "pretending the monitor reports %dx%d", g_monitorW, g_monitorH);
+		} else if (askMonitor) {
+			uint8_t edid[128];
+			g_monitorKnown = readEdid(edid) && dosEdidSize(edid, g_monitorW, g_monitorH);
+			if (g_monitorKnown)
+				snprintf(g_monitorNote, sizeof(g_monitorNote), "the monitor reports %dx%d", g_monitorW, g_monitorH);
+			else
+				snprintf(g_monitorNote, sizeof(g_monitorNote), "the monitor does not report its size");
+		}
+	}
+
+	if (note)
+		*note = g_monitorNote;
+	width = g_monitorW;
+	height = g_monitorH;
+	return g_monitorKnown;
 }
 
 bool VesaDisplay::findMode(int width, int height, bool wantLinear, uint16_t &mode, VesaModeInfo &info) {
@@ -489,6 +531,7 @@ int VesaDisplay::listDirectModes(VesaDirectMode *out, int maxCount) {
 		m.width = mi.xResolution;
 		m.height = mi.yResolution;
 		m.bpp = mi.bitsPerPixel;
+		m.pitch = mi.pitch;
 		m.redSize = rs;
 		m.redPos = rp;
 		m.greenSize = gs;

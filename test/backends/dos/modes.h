@@ -315,4 +315,54 @@ public:
 		const DosScreenMode modes[] = { {640, 400, -1}, {640, 480, 3}, {800, 600, 0} };
 		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 3, 640, 400), 2);
 	}
+
+	void test_mode_fits_the_monitor() {
+		TS_ASSERT(dosModeFits(800, 600, 0, 1, true, 800, 600, 0));
+		TS_ASSERT(!dosModeFits(1024, 768, 0, 1, true, 800, 600, 0));
+		TS_ASSERT(!dosModeFits(1024, 600, 0, 1, true, 800, 600, 0));   // too wide only
+		TS_ASSERT(!dosModeFits(800, 768, 0, 1, true, 1024, 600, 0));   // too high only
+	}
+
+	void test_mode_fits_the_video_memory() {
+		TS_ASSERT(dosModeFits(1024, 768, 0, 1, false, 0, 0, 1024L * 1024));     // 768 KB in 1 MB
+		TS_ASSERT(!dosModeFits(1280, 1024, 0, 1, false, 0, 0, 1024L * 1024));   // 1.25 MB
+		TS_ASSERT(dosModeFits(640, 480, 0, 1, false, 0, 0, 640L * 480));        // exactly full
+		TS_ASSERT(!dosModeFits(640, 480, 0, 1, false, 0, 0, 256L * 1024));      // a 256 KB card
+	}
+
+	void test_mode_fits_both_limits() {
+		const long twoMB = 2048L * 1024;
+		TS_ASSERT(dosModeFits(1024, 768, 0, 2, true, 1280, 1024, twoMB));
+		TS_ASSERT(!dosModeFits(1280, 1024, 0, 2, true, 1280, 1024, twoMB));    // the monitor would, the memory not
+		TS_ASSERT(!dosModeFits(1280, 1024, 0, 1, true, 1024, 768, twoMB));     // the memory would, the monitor not
+	}
+
+	void test_mode_fits_an_unknown_monitor_and_memory() {
+		TS_ASSERT(dosModeFits(1600, 1200, 0, 4, false, 0, 0, 0));
+		TS_ASSERT(dosModeFits(1600, 1200, 0, 4, false, 640, 480, 0));   // a size given but not known is ignored
+	}
+
+	void test_mode_fits_the_vga_baseline_on_any_monitor() {
+		// Every VGA monitor shows 640x480 and 320x200, whatever its EDID says
+		TS_ASSERT(dosModeFits(640, 480, 0, 1, true, 320, 200, 0));
+		TS_ASSERT(dosModeFits(320, 200, 0, 1, true, 100, 100, 0));
+		TS_ASSERT(dosModeFits(640, 400, 0, 2, true, 512, 384, 0));
+		TS_ASSERT(!dosModeFits(720, 350, 0, 1, true, 640, 480, 0));     // wider than the baseline
+		TS_ASSERT(!dosModeFits(640, 480, 0, 2, true, 320, 200, 256L * 1024));   // but not past the memory
+	}
+
+	void test_mode_fits_counts_the_scan_line_length() {
+		// A card that pads 800 pixel lines to 1024 bytes: 600 KB, not 469 KB
+		TS_ASSERT(dosModeFits(800, 600, 0, 1, false, 0, 0, 512L * 1024));
+		TS_ASSERT(!dosModeFits(800, 600, 1024, 1, false, 0, 0, 512L * 1024));
+		TS_ASSERT(dosModeFits(800, 600, 1024, 1, false, 0, 0, 1024L * 1024));
+	}
+
+	void test_mode_fits_counts_the_bytes_per_pixel() {
+		const long oneMB = 1024L * 1024;
+		TS_ASSERT(dosModeFits(800, 600, 0, 2, false, 0, 0, oneMB));      // 938 KB
+		TS_ASSERT(!dosModeFits(1024, 768, 0, 2, false, 0, 0, oneMB));    // 1.5 MB
+		TS_ASSERT(!dosModeFits(800, 600, 0, 4, false, 0, 0, oneMB));     // 1.8 MB
+		TS_ASSERT(dosModeFits(640, 480, 0, 4, false, 0, 0, 2048L * 1024));
+	}
 };

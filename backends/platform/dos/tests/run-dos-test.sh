@@ -19,13 +19,16 @@
 #   sdl             the SDL3 build: VESA video, Sound Blaster audio, the launcher draws, a clean exit
 #   scalesdl        the SDL3 build: a 3x scale factor on a card with nothing above 800x600: the launcher stays at 1x
 #                   and the game is lowered to 2x, rather than set for a screen larger than every video mode
+#   edidsdl         the SDL3 build: a 3x scale factor with a monitor that reports 800x600 (and a card with larger modes):
+#                   the launcher is 800x600 and the game is lowered to 2x, no video mode larger than the monitor is used
+#   edid            the dos backend: a monitor that reports 640x480 and dos_gui_mode=800x600: the menus use 640x480
 #   nomouse         no mouse driver: one warning in the log, a reminder on leaving, a clean exit (nomousesdl: the same
 #                   on the SDL3 build)
 #
 # Prints "DOSTEST <name> OK". Environment:
 #   DOS_BUILD       the build whose dist/ is run (default: build-dos-stable)
 #   TESTBED_BUILD   for plugadd, plugsmoke, mpt, mptdxe and nomouse (default: build-dos-testbed)
-#   SDL_BUILD       for sdl, scalesdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
+#   SDL_BUILD       for sdl, scalesdl, edidsdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
 #   KEEP=1          keep the run folder afterwards
 . "$(dirname "$0")/common.sh"
 
@@ -38,7 +41,7 @@ case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
   plugadd|plugsmoke|mpt|mptdxe|nomouse) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl|scalesdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  sdl|scalesdl|edidsdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -462,6 +465,58 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     echo "$LOG" | grep -q "DOS: no V-Sync" && fail "V-Sync (on by default) could not be switched on"
     echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
     ok "3x on an 800x600 card: launcher at 1x, game lowered to 2x (screens: $SCREENS)"
+    ;;
+
+  edidsdl)
+    # The SDL3 build: scale_factor=3 for every game, and SCUMMVM_DOS_EDID_SIZE pretends the monitor reports 800x600,
+    # while DOSBox-X's card has modes up to 1280x1024. No video mode larger than the monitor may be used: the
+    # launcher is 800x600 and the 320x200 Testbed game is lowered from 3x (960x600, which a 1024x768 mode would hold)
+    # to 2x (640x400)
+    write_conf "$CONF" 64
+    mkdir -p "$RUN/GAME"
+    : > "$RUN/GAME/TESTBED"
+    printf '[scummvm]\r\nscaler=normal\r\nscale_factor=3\r\n\r\n[testbed]\r\ngameid=testbed\r\nengineid=testbed\r\npath=D:\\\r\n' \
+      > "$RUN/SCUMMVM.INI"
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 150 -c "mount c $RUN" -c "mount d $RUN/GAME" -c "c:" \
+      -c "set SCUMMVM_DOS_EDID_SIZE=800x600" -c "set SCUMMVM_DOS_RTL=15" -c "set SCUMMVM_DOS_QUITAT=30" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -d1 testbed > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "DOS test: returning to the launcher" || fail "the program was not sent back to the launcher"
+    SCREENS=$(echo "$LOG" | sed -n 's/.*DOS: screen \([0-9]*x[0-9]*\) in a .*/\1/p' | tr '\n' ' ')
+    set -- $SCREENS
+    [ "$1" = 800x600 ] || fail "the launcher started at ${1:-no size}, not 800x600 (screens: $SCREENS)"
+    echo "$SCREENS" | grep -q "640x400" || fail "the game was not lowered to 640x400 (2x) (screens: $SCREENS)"
+    echo "$SCREENS" | grep -q "960x600" && fail "a 960x600 screen was set up, larger than the monitor (screens: $SCREENS)"
+    LAST=$(echo "$SCREENS" | awk '{ print $NF }')
+    [ "$LAST" = 800x600 ] || fail "back in the launcher the screen is $LAST, not 800x600 (screens: $SCREENS)"
+    MODES=$(echo "$LOG" | sed -n 's/.*DOS: video mode \([0-9]*\)x\([0-9]*\),.*/\1 \2/p')
+    [ -n "$MODES" ] || fail "the log names no video mode"
+    echo "$MODES" | while read -r w h; do
+      [ "$w" -le 800 ] && [ "$h" -le 600 ] || { echo "DOSTEST $NAME FAILED: a ${w}x${h} video mode was set, larger than the monitor"; exit 1; }
+    done || exit 1
+    echo "$LOG" | grep -q "video modes larger than the monitor's 800x600 are not used" ||
+      fail "the log does not say the larger modes were left out for the monitor"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "a monitor of 800x600: launcher 800x600, game lowered to 2x (screens: $SCREENS)"
+    ;;
+
+  edid)
+    # The dos backend: SCUMMVM_DOS_EDID_SIZE pretends the monitor reports 640x480 and the menus are configured for
+    # 800x600, which the card has: the menus must use 640x480, the VGA baseline every monitor shows
+    write_conf "$CONF" 64
+    run_dosbox "$CONF" 60 -c "mount c $RUN" -c "c:" \
+      -c "set SCUMMVM_DOS_EDID_SIZE=640x480" -c "set SCUMMVM_DOS_GUI_MODE=800x600" -c "set SCUMMVM_DOS_QUITAT=10" \
+      -c "SCUMMVM.EXE" -c "exit"
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "pretending the monitor reports 640x480" || fail "the pretended monitor size was not used"
+    echo "$LOG" | grep -q "modes too large for the monitor (640x480).* 800x600" || fail "800x600 was not left out for the monitor"
+    echo "$LOG" | grep -q "DOSGFX: menus use 640x480" || fail "the menus do not use 640x480"
+    echo "$LOG" | grep -q "DOSGFX: VESA mode 640x480" || fail "no 640x480 VESA mode was set"
+    echo "$LOG" | grep -q "DOSGFX: VESA mode 800x600" && fail "an 800x600 mode was set, larger than the monitor"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "a monitor of 640x480: $(echo "$LOG" | grep -m1 'DOSGFX: menus use' | sed 's/.*DOSGFX: //; s/!$//')"
     ;;
 
   nomouse|nomousesdl)

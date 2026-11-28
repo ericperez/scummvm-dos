@@ -174,6 +174,15 @@ private:
 	/** Switch to the menus' resolution, or 320x200 if that fails. */
 	bool setLauncherMode();
 
+	/**
+	 * The card's 256 colour modes that the monitor (when its size is known) and the video memory can take (see
+	 * dosModeFits()); the others are named once in the log.
+	 */
+	int listFittingModes(DosModeSize *modes, int maxCount, int *vbeVersion = nullptr);
+
+	/** Note the modes listFittingModes() or listDirectModes() dropped, if any. */
+	void noteRefusedModes(const Common::String &refused, bool haveMonitor, int monitorW, int monitorH, long videoMemory);
+
 	#ifdef USE_RGB_COLOR
 	// High colour (15 and 16 bit) screens
 
@@ -279,6 +288,7 @@ private:
 	bool _guiModeChosen;
 	bool _guiModeValid;
 	int _guiW, _guiH;
+	bool _fittingNoted;                 ///< listFittingModes() named the modes it dropped
 
 	/** What choosing a mode found, warned once the screen is in a graphics mode (logModeNotes()) */
 	Common::StringArray _modeNotes;

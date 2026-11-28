@@ -234,6 +234,30 @@ static inline int dosFitScaleFactor(const DosModeSize *modes, int count, int w, 
 	return 1;
 }
 
+/**
+ * Whether a video mode can be used: no larger than the monitor (when its size is known) and no larger than the
+ * card's video memory (when known). Modes of 640x480 or smaller (and 320x200) are the VGA baseline every VGA
+ * monitor shows, so the monitor's size does not rule them out; the video memory still does.
+ *
+ * @param w, h              the mode's size
+ * @param bytesPerLine      the mode's scan line in bytes; 0 if unknown (w * bytesPerPixel is used)
+ * @param bytesPerPixel     1, 2, 3 or 4
+ * @param haveMonitor       whether the monitor's largest size is known
+ * @param monitorW, monitorH  the monitor's largest size
+ * @param videoMemoryBytes  the card's video memory; 0 if unknown
+ */
+static inline bool dosModeFits(int w, int h, long bytesPerLine, int bytesPerPixel, bool haveMonitor,
+                               int monitorW, int monitorH, long videoMemoryBytes) {
+	const bool vgaBaseline = w <= 640 && h <= 480;
+	if (haveMonitor && !vgaBaseline && (w > monitorW || h > monitorH))
+		return false;
+
+	const long line = bytesPerLine > 0 ? bytesPerLine : (long)w * bytesPerPixel;
+	if (videoMemoryBytes > 0 && line * h > videoMemoryBytes)
+		return false;
+	return true;
+}
+
 /** A video mode the SDL build can draw the screen into */
 struct DosScreenMode {
 	int w, h;

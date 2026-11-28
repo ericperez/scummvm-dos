@@ -81,15 +81,49 @@ private:
 	Common::EventSource *_source;
 };
 
+// The card's video memory in bytes (0 if it does not say), asked once, and whether a mode was refused yet
+static bool g_videoMemoryKnown = false;
+static long g_videoMemory = 0;
+static bool g_modeRefusalLogged = false;
+
+/**
+ * Whether the monitor (when its size is known) and the card's video memory can take a video mode (see
+ * dosModeFits()). The first mode refused is logged.
+ */
+static bool dosScreenModeFits(const SDL_DisplayMode *mode) {
+	if (!g_videoMemoryKnown) {
+		g_videoMemoryKnown = true;
+		g_videoMemory = (long)VesaDisplay::videoMemoryKB() * 1024;
+	}
+	const long memory = g_videoMemory;
+
+	int monitorW, monitorH;
+	const bool haveMonitor = VesaDisplay::monitorSize(monitorW, monitorH);
+	if (dosModeFits(mode->w, mode->h, 0, SDL_BYTESPERPIXEL(mode->format), haveMonitor, monitorW, monitorH, memory))
+		return true;
+
+	if (!g_modeRefusalLogged) {
+		g_modeRefusalLogged = true;
+		if (haveMonitor && !dosModeFits(mode->w, mode->h, 0, SDL_BYTESPERPIXEL(mode->format), haveMonitor, monitorW, monitorH, 0))
+			debug(1, "DOS: video modes larger than the monitor's %dx%d are not used (such as %dx%d)", monitorW, monitorH, mode->w, mode->h);
+		else
+			debug(1, "DOS: video modes larger than the card's %ld KB of video memory are not used (such as %dx%d)", memory / 1024, mode->w, mode->h);
+	}
+	return false;
+}
+
 /**
  * How well a video mode's pixel format suits the screen (see DosScreenMode): -1 if it is unusable, as the
- * scalers and the launcher draw in 16 or 32 bits only. Testing aid: SCUMMVM_DOS_MODE_MAX=<width>x<height>
- * hides the larger modes, as a card with less video memory would.
+ * scalers and the launcher draw in 16 or 32 bits only, or if the monitor or the video memory cannot take it.
+ * Testing aid: SCUMMVM_DOS_MODE_MAX=<width>x<height> hides the larger modes, as a card with less video memory
+ * would.
  */
 static int dosScreenModeRank(const SDL_DisplayMode *mode) {
 	int maxW = 0, maxH = 0;
 	const char *max = getenv("SCUMMVM_DOS_MODE_MAX");
 	if (max && dosParseSize(max, maxW, maxH) && (mode->w > maxW || mode->h > maxH))
+		return -1;
+	if (!dosScreenModeFits(mode))
 		return -1;
 
 	if (mode->format == SDL_PIXELFORMAT_RGB565)
@@ -260,24 +294,12 @@ bool dosGuiResolution(uint &width, uint &height) {
 		addGuiNote(Common::String::format("DOSGFX: no %dx%d mode; choosing one", explicitW, explicitH));
 	}
 
-	// What the monitor says it is
-	bool haveNative = false;
+	// What the monitor says it is (the modes larger than that are left out of sizes already)
 	int nativeW = 0, nativeH = 0;
-	bool askMonitor = true;
-	if (ConfMan.hasKey("dos_gui_edid"))
-		askMonitor = ConfMan.getBool("dos_gui_edid");
-	if (const char *env = getenv("SCUMMVM_DOS_EDID"))
-		askMonitor = askMonitor && atoi(env) != 0;
-
-	const char *fake = getenv("SCUMMVM_DOS_EDID_SIZE");
-	if (fake && dosParseSize(fake, nativeW, nativeH)) {
-		haveNative = true;
-	} else if (askMonitor) {
-		uint8 edid[128];
-		haveNative = VesaDisplay::readEdid(edid) && dosEdidSize(edid, nativeW, nativeH);
-		if (haveNative)
-			addGuiNote(Common::String::format("DOSGFX: the monitor reports %dx%d", nativeW, nativeH));
-	}
+	const char *monitorNote = nullptr;
+	const bool haveNative = VesaDisplay::monitorSize(nativeW, nativeH, &monitorNote);
+	if (*monitorNote)
+		addGuiNote(Common::String::format("DOSGFX: %s", monitorNote));
 
 	DosModeSize best;
 	if (!dosChooseGuiMode(sizes, count, maxW, maxH, haveNative, nativeW, nativeH, best)) {

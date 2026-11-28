@@ -32,7 +32,7 @@ Legend: **same** = as other builds, **new** = added in the parity work (2026-11-
 |---|---|---|---|
 | 8-bit palette graphics | yes | VGA mode 13h and VBE 2.0, linear framebuffer or banked | same |
 | High colour (16-bit) | yes | VBE direct-colour modes; dithered 256-colour fallback when the card's memory is too small | same |
-| Menu resolution | window size | the monitor's native size from EDID / VBE, up to 1024x768 | same |
+| Menu resolution | window size | the monitor's native size from EDID / VBE, up to 1024x768; neither the menus nor a game get a mode larger than the monitor reports or than the card's video memory holds (640x480 and smaller, which every VGA monitor shows, are only held to the memory) | same |
 | Aspect ratio correction | option | inherent: 320x200 games use the 4:3 mode and the monitor stretches it | same |
 | OpenGL, OpenGL ES, shaders | yes | no (no GPU API under DOS); the software 3D renderer TinyGL is built in | no |
 | Software scalers (2x/3x, hq2x, edge), filtering, stretch modes | Graphics options | own backend: not offered, the game is shown 1:1 (doubled when small and high colour) and the monitor scales it; SDL3 build: scalers only (see the Graphics options tab below) | not yet |
@@ -166,8 +166,8 @@ program is left cleanly (`tests/run-dos-test.sh sdl`, on a Testbed-only build). 
 
 What the SDL3 build gives up or has not got, and is not done for now:
 
-* **VBE 2.0 and the monitor's size.** SDL3 supports VBE 1.2+ and picks the closest mode itself: the menu is not
-  sized from the monitor's EDID.
+* **VBE 2.0.** SDL3 supports VBE 1.2+ and keeps its own mode list; the port picks from it, leaving out the modes
+  larger than the monitor (EDID) or the video memory, as the own backend does.
 * **The dithered 256-colour fallback** for cards with too little video memory, and the direct-colour (16-bit) path
   of `dos-graphics.cpp`: what SDL's driver offers is what there is.
 * **Page flipping and the mode switching of `dos-graphics.cpp`**, replaced by SDL's own. On a linear framebuffer with
