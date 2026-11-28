@@ -408,10 +408,38 @@ void SurfaceSdlGraphicsManager::beginGFXTransaction() {
 	_oldVideoMode = _videoMode;
 }
 
+#ifdef USE_DOS_SDL
+// In backends/platform/dos/dos-sdl.cpp: the launcher's resolution, chosen as the dos backend does, and the
+// largest scale factor (up to the one given) at which a video mode holds a screen
+bool dosGuiResolution(uint &width, uint &height);
+int dosScreenScaleFactor(int width, int height, bool aspect, int factor);
+#endif
+
 OSystem::TransactionError SurfaceSdlGraphicsManager::endGFXTransaction() {
 	int errors = OSystem::kTransactionSuccess;
 
 	assert(_transactionMode != kTransactionNone);
+
+#ifdef USE_DOS_SDL
+	// There is no renderer to shrink a picture larger than the video mode: lower a scale factor that would
+	// need one larger than the card has. Done before the scaler is set up for the new factor (hotswap).
+	if (_transactionMode == kTransactionActive && _videoMode.screenWidth > 0 && _videoMode.screenHeight > 0) {
+		const bool aspect = _videoMode.aspectRatioCorrection &&
+		                    (_videoMode.screenHeight == 200 || _videoMode.screenHeight == 400);
+		const int factor = dosScreenScaleFactor(_videoMode.screenWidth, _videoMode.screenHeight, aspect,
+		                                        _videoMode.scaleFactor);
+		if (factor != _videoMode.scaleFactor) {
+			debug(1, "DOS: %dx%d at %dx needs a larger video mode than the card has; using %dx",
+			      _videoMode.screenWidth, _videoMode.screenHeight, _videoMode.scaleFactor, factor);
+			if (!_scalerPlugins[_videoMode.scalerIndex]->get<ScalerPluginObject>().hasFactor(factor))
+				_videoMode.scalerIndex = getDefaultScaler();
+			_videoMode.scaleFactor = factor;
+			if (_oldVideoMode.setup && _oldVideoMode.scaleFactor != factor)
+				_transactionDetails.needHotswap = true;
+			_transactionDetails.needUpdatescreen = true;
+		}
+	}
+#endif
 
 	if (_transactionMode == kTransactionRollback) {
 		if (_videoMode.mode != _oldVideoMode.mode) {
@@ -680,27 +708,10 @@ uint SurfaceSdlGraphicsManager::getDefaultScaleFactor() const {
 #endif
 }
 
-#ifdef USE_DOS_SDL
-// In backends/platform/dos/dos-sdl.cpp: the launcher's resolution, chosen as the dos backend does
-bool dosGuiResolution(uint &width, uint &height);
-#endif
-
 bool SurfaceSdlGraphicsManager::setScaler(uint mode, int factor) {
 	Common::StackLock lock(_graphicsMutex);
 
 	assert(_transactionMode == kTransactionActive);
-
-#ifdef USE_DOS_SDL
-	// The launcher keeps the factor initSize() gave it, rather than one (such as the default 2x) that needs a
-	// video mode larger than the one chosen for it, which the card may not have in 16 or 32 bits
-	uint guiWidth, guiHeight;
-	if (!g_engine && dosGuiResolution(guiWidth, guiHeight) && _videoMode.screenWidth == (int)guiWidth &&
-	        _videoMode.screenHeight == (int)guiHeight && defaultGraphicsModeConfig()) {
-		factor = MAX<int>(1, (factor == -1 ? (int)getDefaultScaleFactor() : factor) * 320 / (int)guiWidth);
-		if (!_scalerPlugins[mode]->get<ScalerPluginObject>().hasFactor(factor))
-			mode = getDefaultScaler();
-	}
-#endif
 
 	if (_oldVideoMode.setup && _oldVideoMode.scalerIndex == mode && _oldVideoMode.scaleFactor == factor)
 		return true;
@@ -1242,7 +1253,7 @@ bool SurfaceSdlGraphicsManager::hotswapGFXMode() {
 #ifdef USE_DOS_SDL
 // In dos-sdl.cpp: an RGB565 video mode for the screen, and the start-up banner (drawn until the game draws or
 // the video mode changes)
-bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight);
+bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight, SDL_PixelFormat &modeFormat);
 bool dosBannerDraw(SDL_Surface *surface);
 bool dosBannerClear();
 /**
@@ -3197,24 +3208,26 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		SDL_Window *sdlWindow = _window->getSDLWindow();
 		SDL_Surface *windowSurface = nullptr;
 		int modeW = 0, modeH = 0;
+		SDL_PixelFormat modeFormat = SDL_PIXELFORMAT_UNKNOWN;
 
 		// SDL's DOS driver may set a mode of the right size in another pixel format: choose the
-		// mode again and make the surface again until it is RGB565 (three tries)
+		// mode again and make the surface again until it is in the mode's format (three tries)
 		for (int attempt = 0; attempt < 3; attempt++) {
-			const bool chosen = dosChooseVideoMode(sdlWindow, width, height, modeW, modeH);
+			// No mode holds the screen: fail, so that the transaction goes back to the screen there was,
+			// rather than show part of a surface larger than the display
+			if (!dosChooseVideoMode(sdlWindow, width, height, modeW, modeH, modeFormat))
+				return nullptr;
 			SDL_DestroyWindowSurface(sdlWindow);
 			windowSurface = SDL_GetWindowSurface(sdlWindow);
-			if (!windowSurface || !chosen || windowSurface->format == SDL_PIXELFORMAT_RGB565)
+			if (!windowSurface || windowSurface->format == modeFormat)
 				break;
-			debug(1, "DOS: the window's surface is %s, not RGB565; choosing the mode again", SDL_GetPixelFormatName(windowSurface->format));
+			debug(1, "DOS: the window's surface is %s, not %s; choosing the mode again",
+			      SDL_GetPixelFormatName(windowSurface->format), SDL_GetPixelFormatName(modeFormat));
 		}
 		if (!windowSurface) {
 			warning("SDL_GetWindowSurface failed (%s)", SDL_GetError());
 			return nullptr;
 		}
-
-		if (windowSurface->format != SDL_PIXELFORMAT_RGB565)
-			warning("DOS: the screen is a %s surface: no RGB565 video mode of %dx%d or more", SDL_GetPixelFormatName(windowSurface->format), width, height);
 
 		// The scalers and the launcher draw in 16 or 32 bits only: fail rather than draw into another depth
 		const int bytesPerPixel = SDL_BYTESPERPIXEL(windowSurface->format);
@@ -3224,10 +3237,12 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		}
 
 		// What the driver sends to video memory is the part of the surface that is inside the mode
-		int visibleW = windowSurface->w, visibleH = windowSurface->h;
-		if (modeW > 0 && modeH > 0) {
-			visibleW = MIN(visibleW, modeW);
-			visibleH = MIN(visibleH, modeH);
+		const int visibleW = MIN(windowSurface->w, modeW);
+		const int visibleH = MIN(windowSurface->h, modeH);
+		// The scaler draws the whole hardware screen: a smaller surface would be drawn past its end
+		if (visibleW < width || visibleH < height) {
+			warning("DOS: only %dx%d of a %dx%d screen can be shown", visibleW, visibleH, width, height);
+			return nullptr;
 		}
 		_windowWidth = visibleW;
 		_windowHeight = visibleH;
@@ -3238,9 +3253,9 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		      SDL_GetPixelFormatName(windowSurface->format), windowSurface->w, windowSurface->h, visibleW, visibleH,
 		      _gameDrawRect.left, _gameDrawRect.top, _gameDrawRect.width(), _gameDrawRect.height(),
 		      _overlayDrawRect.left, _overlayDrawRect.top, _overlayDrawRect.width(), _overlayDrawRect.height());
-		_dosViewX = visibleW > width ? (visibleW - width) / 2 : 0;
-		_dosViewY = visibleH > height ? (visibleH - height) / 2 : 0;
-		return SDL_CreateSurfaceFrom(MIN(width, visibleW), MIN(height, visibleH), windowSurface->format,
+		_dosViewX = (visibleW - width) / 2;
+		_dosViewY = (visibleH - height) / 2;
+		return SDL_CreateSurfaceFrom(width, height, windowSurface->format,
 		                             (Uint8 *)windowSurface->pixels + _dosViewY * windowSurface->pitch + _dosViewX * bytesPerPixel,
 		                             windowSurface->pitch);
 	}

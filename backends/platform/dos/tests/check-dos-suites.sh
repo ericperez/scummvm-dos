@@ -11,7 +11,7 @@ SUITES="
 keymap.h   DosKeymapTestSuite   15 dos-keymap.h
 cd.h       DosCdTestSuite       20 dos-cd.h
 dither.h   DosDitherTestSuite   15 dos-dither.h
-modes.h    DosModesTestSuite    10 dos-modes.h
+modes.h    DosModesTestSuite    22 dos-modes.h
 names.h    DosNamesTestSuite     6 dos-names.h
 netparse.h DosNetParseTestSuite 10 dos-netparse.h
 joystick.h DosJoystickTestSuite 10 dos-joystick.h

@@ -207,4 +207,71 @@ static inline bool dosChooseGameMode(const DosModeSize *modes, int count, int w,
 	return found;
 }
 
+/**
+ * The largest scale factor, no larger than the one asked for, at which a w x h screen fits one of the modes.
+ * The SDL backend has no renderer on DOS to shrink a picture larger than the video mode, so a larger factor
+ * would leave part of the screen off the display.
+ *
+ * @param modes   the modes to choose from
+ * @param count   how many there are
+ * @param w, h    the screen before scaling
+ * @param aspect  true if the scaled screen is drawn 6/5 as high (aspect ratio correction, see real2Aspect())
+ * @param factor  the scale factor asked for
+ * @return the factor to use; 1 when not even 2x fits (or factor is 1 or less)
+ */
+static inline int dosFitScaleFactor(const DosModeSize *modes, int count, int w, int h, bool aspect, int factor) {
+	for (int f = factor; f > 1; f--) {
+		const long scaledW = (long)w * f;
+		long scaledH = (long)h * f;
+		if (aspect)
+			scaledH += (scaledH + 1) / 5;
+
+		for (int i = 0; i < count; i++) {
+			if (modes[i].w >= scaledW && modes[i].h >= scaledH)
+				return f;
+		}
+	}
+	return 1;
+}
+
+/** A video mode the SDL build can draw the screen into */
+struct DosScreenMode {
+	int w, h;
+	/** How well its pixel format suits: 0 RGB565, 1 another 16-bit format, 2 a 32-bit format */
+	int rank;
+};
+
+/**
+ * The mode for a screen of w x h in the SDL build: the smallest 16-bit mode that holds it (RGB565 ahead of
+ * another 16-bit format of the same size), else the smallest 32-bit one. Modes of another rank are skipped.
+ *
+ * @return the index of the mode in modes, or -1 if none holds the screen
+ */
+static inline int dosChooseScreenMode(const DosScreenMode *modes, int count, int w, int h) {
+	int best = -1;
+	for (int i = 0; i < count; i++) {
+		const DosScreenMode &m = modes[i];
+		if (m.rank < 0 || m.rank > 2 || m.w < w || m.h < h)
+			continue;
+		if (best < 0) {
+			best = i;
+			continue;
+		}
+
+		const DosScreenMode &b = modes[best];
+		const bool deep = m.rank == 2, bestDeep = b.rank == 2;
+		const long area = (long)m.w * m.h, bestArea = (long)b.w * b.h;
+		if (deep != bestDeep) {
+			if (!deep)
+				best = i;
+		} else if (area != bestArea) {
+			if (area < bestArea)
+				best = i;
+		} else if (m.rank < b.rank) {
+			best = i;
+		}
+	}
+	return best;
+}
+
 #endif

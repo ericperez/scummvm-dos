@@ -17,13 +17,15 @@
 #   smoke           the launcher comes up and draws
 #   nodpmi          without dist's CWSDPMI.EXE the program cannot start (so the other tests ran on it)
 #   sdl             the SDL3 build: VESA video, Sound Blaster audio, the launcher draws, a clean exit
+#   scalesdl        the SDL3 build: a 3x scale factor on a card with nothing above 800x600: the launcher stays at 1x
+#                   and the game is lowered to 2x, rather than set for a screen larger than every video mode
 #   nomouse         no mouse driver: one warning in the log, a reminder on leaving, a clean exit (nomousesdl: the same
 #                   on the SDL3 build)
 #
 # Prints "DOSTEST <name> OK". Environment:
 #   DOS_BUILD       the build whose dist/ is run (default: build-dos-stable)
 #   TESTBED_BUILD   for plugadd, plugsmoke, mpt, mptdxe and nomouse (default: build-dos-testbed)
-#   SDL_BUILD       for sdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
+#   SDL_BUILD       for sdl, scalesdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
 #   KEEP=1          keep the run folder afterwards
 . "$(dirname "$0")/common.sh"
 
@@ -36,7 +38,7 @@ case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
   plugadd|plugsmoke|mpt|mptdxe|nomouse) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  sdl|scalesdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -428,6 +430,37 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     BIG=$(find "$RUN" -iname 'SHOT*.PNG' -size +8k | wc -l | tr -d ' ')
     [ "$BIG" -ge 1 ] || fail "every screenshot is blank"
     ok "the launcher ran on SDL3, $SHOTS screenshots"
+    ;;
+
+  scalesdl)
+    # The SDL3 build: scale_factor=3 for every game, and SCUMMVM_DOS_MODE_MAX hides the video modes above 800x600, as
+    # a card with less video memory would. SDL's DOS driver has no renderer to shrink a picture, so a screen larger
+    # than the video mode would be cut off: the 800x600 launcher stays at 1x (not 2400x1800) and the 320x200 Testbed
+    # game is lowered from 3x (960x600) to 2x (640x400)
+    write_conf "$CONF" 64
+    mkdir -p "$RUN/GAME"
+    : > "$RUN/GAME/TESTBED"
+    printf '[scummvm]\r\nscaler=normal\r\nscale_factor=3\r\n\r\n[testbed]\r\ngameid=testbed\r\nengineid=testbed\r\npath=D:\\\r\n' \
+      > "$RUN/SCUMMVM.INI"
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 150 -c "mount c $RUN" -c "mount d $RUN/GAME" -c "c:" \
+      -c "set SCUMMVM_DOS_MODE_MAX=800x600" -c "set SCUMMVM_DOS_RTL=15" -c "set SCUMMVM_DOS_QUITAT=30" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -d1 testbed > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "DOS test: returning to the launcher" || fail "the program was not sent back to the launcher"
+    SCREENS=$(echo "$LOG" | sed -n 's/.*DOS: screen \([0-9]*x[0-9]*\) in a .*/\1/p' | tr '\n' ' ')
+    set -- $SCREENS
+    [ "$1" = 800x600 ] || fail "the launcher started at ${1:-no size}, not 800x600 at 1x (screens: $SCREENS)"
+    echo "$SCREENS" | grep -q "640x400" || fail "the game was not lowered to 640x400 (2x) (screens: $SCREENS)"
+    echo "$SCREENS" | grep -q "960x600" && fail "a 960x600 screen was set up, larger than every mode (screens: $SCREENS)"
+    LAST=$(echo "$SCREENS" | awk '{ print $NF }')
+    [ "$LAST" = 800x600 ] || fail "back in the launcher the screen is $LAST, not 800x600 (screens: $SCREENS)"
+    echo "$LOG" | grep -q "320x200 at 3x needs a larger video mode than the card has; using 2x" ||
+      fail "the log does not say the game's scale factor was lowered"
+    echo "$LOG" | grep -q "DOS: only .* screen can be shown" && fail "a screen larger than its video mode was set up"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "3x on an 800x600 card: launcher at 1x, game lowered to 2x (screens: $SCREENS)"
     ;;
 
   nomouse|nomousesdl)

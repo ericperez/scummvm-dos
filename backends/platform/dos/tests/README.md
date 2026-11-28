@@ -17,7 +17,7 @@ The suites are in `test/backends/dos/` (`test/module.mk` takes every `*.h` there
 | `DosScanCodesTestSuite` | IRQ 1 scan codes: prefixes, releases, repeats, modifier and lock keys; key codes by place; the BIOS keyboard fallback | `dos-scancodes.h` |
 | `DosVesaTestSuite` | VESA BIOS blocks: mode fields, usable modes, high colour fields, display pages, memory banks | `dos-vesainfo.h` |
 | `DosDitherTestSuite` | 256-colour dithering: palette, tables, the line converter against the plain one; the overlay's fixed 3-3-2 palette | `dos-dither.h` |
-| `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists) | `dos-modes.h` |
+| `DosModesTestSuite` | choosing the launcher's resolution (EDID, VESA mode lists) and the SDL build's scale factor and video modes | `dos-modes.h` |
 | `DosNamesTestSuite` | 8.3 names, CONFIG.SYS country to language | `dos-names.h` |
 | `DosNetParseTestSuite` | dotted addresses in network byte order, as SDL_net holds them | `dos-netparse.h` |
 | `DosJoystickTestSuite` | game port buttons, calibration, cursor speed | `dos-joystick.h` |
@@ -71,6 +71,7 @@ Each test works in `build-dos-tests/run-<name>`, in a clean copy of the distribu
 | `mptdxe` | tracker music in the plug-in build (`build-dos-testbed`, or `TESTBED_BUILD`) is `OPENMPT.DXE`, next to the program and not taken for a plug-in: the launcher alone does not load it; a Testbed game does, a MOD file (`gen-test-mod.py`) plays through it with sound, and it is unloaded after the engine's plug-in; the program ends with status 0 | `SCUMMVM_DOS_PLUGLOG`, `SCUMMVM_DOS_MPTTEST=file` |
 | `mptdxesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 | `sdl` | the SDL3 build (`--backend=sdl`, `build-dos-sdl-testbed`, or `SDL_BUILD`): SDL's VESA video and Sound Blaster audio drivers start, the launcher draws, the program is left cleanly, and there is no warning about a missing mouse driver | `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_QUITAT` |
+| `scalesdl` | the SDL3 build: `scale_factor=3` with the video modes above 800x600 hidden: the 800x600 launcher stays at 1x, the 320x200 Testbed game is lowered to 2x (640x400) instead of a 960x600 screen no mode holds, and the launcher comes back at 800x600; V-Sync is on | `SCUMMVM_DOS_MODE_MAX`, `SCUMMVM_DOS_RTL`, `SCUMMVM_DOS_QUITAT` |
 | `nomouse` | with DOSBox-X's own mouse driver off (`int33=false`; the `testbed` build, or `TESTBED_BUILD`): one WARNING in the log that no mouse driver is loaded, the same reminder printed again once the program has left, and the program still ends with status 0 | `SCUMMVM_DOS_QUITAT` |
 | `nomousesdl` | the same on the SDL3 build (`build-dos-sdl-testbed`, or `SDL_BUILD`) | the same |
 

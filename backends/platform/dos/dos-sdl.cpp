@@ -82,37 +82,72 @@ private:
 };
 
 /**
- * Ask for an RGB565 video mode of at least this size, rather than the 32-bit one SDL's DOS driver would take.
+ * How well a video mode's pixel format suits the screen (see DosScreenMode): -1 if it is unusable, as the
+ * scalers and the launcher draw in 16 or 32 bits only. Testing aid: SCUMMVM_DOS_MODE_MAX=<width>x<height>
+ * hides the larger modes, as a card with less video memory would.
+ */
+static int dosScreenModeRank(const SDL_DisplayMode *mode) {
+	int maxW = 0, maxH = 0;
+	const char *max = getenv("SCUMMVM_DOS_MODE_MAX");
+	if (max && dosParseSize(max, maxW, maxH) && (mode->w > maxW || mode->h > maxH))
+		return -1;
+
+	if (mode->format == SDL_PIXELFORMAT_RGB565)
+		return 0;
+	if (SDL_ISPIXELFORMAT_INDEXED(mode->format) || SDL_ISPIXELFORMAT_FOURCC(mode->format))
+		return -1;
+	switch (SDL_BYTESPERPIXEL(mode->format)) {
+	case 2:
+		return 1;
+	case 4:
+		return 2;
+	default:
+		return -1;
+	}
+}
+
+/**
+ * Set the video mode for a screen of this size (see dosChooseScreenMode()), rather than the one SDL's DOS
+ * driver would take.
  *
  * @param modeWidth, modeHeight  the size of the mode chosen, 0 if there is none
- * @return true if a mode was asked for (SurfaceSdlGraphicsManager::SDL_SetVideoMode() checks it took)
+ * @param modeFormat             its pixel format, SDL_PIXELFORMAT_UNKNOWN if there is none
+ * @return true if the mode was set; false if no mode holds the screen or setting it failed
  */
-bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight) {
+bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidth, int &modeHeight, SDL_PixelFormat &modeFormat) {
 	modeWidth = modeHeight = 0;
+	modeFormat = SDL_PIXELFORMAT_UNKNOWN;
 
 	int count = 0;
 	SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(SDL_GetDisplayForWindow(window), &count);
-	const SDL_DisplayMode *best = nullptr;
-	for (int i = 0; modes && i < count; i++) {
-		const SDL_DisplayMode *mode = modes[i];
-		if (mode->format != SDL_PIXELFORMAT_RGB565 || mode->w < width || mode->h < height)
-			continue;
-		if (!best || mode->w * mode->h < best->w * best->h)
-			best = mode;
+	DosScreenMode candidates[64];
+	const SDL_DisplayMode *sources[64];
+	int candidateCount = 0;
+	for (int i = 0; modes && i < count && candidateCount < ARRAYSIZE(candidates); i++) {
+		candidates[candidateCount].w = modes[i]->w;
+		candidates[candidateCount].h = modes[i]->h;
+		candidates[candidateCount].rank = dosScreenModeRank(modes[i]);
+		sources[candidateCount] = modes[i];
+		candidateCount++;
 	}
+	const int best = dosChooseScreenMode(candidates, candidateCount, width, height);
 
 	bool chosenOk = false;
-	if (best) {
-		const SDL_DisplayMode chosen = *best;
+	if (best < 0) {
+		warning("DOS: no video mode of %dx%d or more in 16 or 32 bits", width, height);
+	} else {
+		const SDL_DisplayMode chosen = *sources[best];
+		const char *formatName = SDL_GetPixelFormatName(chosen.format);
 		// The driver sets the video mode only for a fullscreen window
 		if (!(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) && (!SDL_SetWindowFullscreen(window, true) || !SDL_SyncWindow(window)))
 			warning("DOS: could not make the window fullscreen: %s", SDL_GetError());
 		if (!SDL_SetWindowFullscreenMode(window, &chosen) || !SDL_SyncWindow(window)) {
-			warning("DOS: could not select the %dx%d RGB565 video mode: %s", chosen.w, chosen.h, SDL_GetError());
+			warning("DOS: could not select the %dx%d %s video mode: %s", chosen.w, chosen.h, formatName, SDL_GetError());
 		} else {
-			debug(1, "DOS: video mode %dx%d, RGB565", chosen.w, chosen.h);
+			debug(1, "DOS: video mode %dx%d, %s", chosen.w, chosen.h, formatName);
 			modeWidth = chosen.w;
 			modeHeight = chosen.h;
+			modeFormat = chosen.format;
 			chosenOk = true;
 		}
 	}
@@ -120,7 +155,36 @@ bool dosChooseVideoMode(SDL_Window *window, int width, int height, int &modeWidt
 	return chosenOk;
 }
 
-// The launcher's resolution, once chosen (dosGuiResolution())
+/**
+ * The sizes of the video modes the screen can use (16 or 32 bits), each once.
+ *
+ * @return how many were written to sizes
+ */
+static int dosScreenModeSizes(DosModeSize *sizes, int maxCount) {
+	int count = 0;
+	int modeCount = 0;
+	SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(SDL_GetPrimaryDisplay(), &modeCount);
+	for (int i = 0; modes && i < modeCount && count < maxCount; i++) {
+		if (dosScreenModeRank(modes[i]) < 0)
+			continue;
+		bool known = false;
+		for (int j = 0; j < count; j++)
+			known = known || (sizes[j].w == modes[i]->w && sizes[j].h == modes[i]->h);
+		if (!known) {
+			sizes[count].w = modes[i]->w;
+			sizes[count].h = modes[i]->h;
+			count++;
+		}
+	}
+	SDL_free(modes);
+	return count;
+}
+
+// The launcher's resolution, once chosen (dosGuiResolution()), and the largest it may be
+enum {
+	kGuiMaxWidth = 1600,
+	kGuiMaxHeight = 1200
+};
 static bool g_guiChosen = false, g_guiValid = false;
 static uint g_guiW = 0, g_guiH = 0;
 
@@ -136,8 +200,8 @@ static void addGuiNote(const Common::String &note) {
 }
 
 /**
- * The launcher's resolution, picked as DOSGraphicsManager::chooseGuiMode() does (same settings), from the
- * RGB565 modes. Decided once.
+ * The launcher's resolution, picked as DOSGraphicsManager::chooseGuiMode() does (same settings and limits),
+ * from the modes the screen can use. Decided once.
  *
  * @return false to keep the launcher at 320x200 (shown at 640x480).
  */
@@ -175,29 +239,16 @@ bool dosGuiResolution(uint &width, uint &height) {
 		maxW = 1024;
 		maxH = 768;
 	}
+	// The largest the menus may be, as in the dos backend (DOSGraphicsManager::kGuiMaxWidth)
+	maxW = MIN<int>(maxW, kGuiMaxWidth);
+	maxH = MIN<int>(maxH, kGuiMaxHeight);
 
-	// The sizes the display has in RGB565, each once
 	DosModeSize sizes[64];
-	int count = 0;
-	int modeCount = 0;
-	SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(SDL_GetPrimaryDisplay(), &modeCount);
-	for (int i = 0; modes && i < modeCount && count < 64; i++) {
-		if (modes[i]->format != SDL_PIXELFORMAT_RGB565)
-			continue;
-		bool known = false;
-		for (int j = 0; j < count; j++)
-			known = known || (sizes[j].w == modes[i]->w && sizes[j].h == modes[i]->h);
-		if (!known) {
-			sizes[count].w = modes[i]->w;
-			sizes[count].h = modes[i]->h;
-			count++;
-		}
-	}
-	SDL_free(modes);
+	const int count = dosScreenModeSizes(sizes, ARRAYSIZE(sizes));
 
 	if (wantExplicit) {
 		for (int i = 0; i < count; i++) {
-			if (sizes[i].w == explicitW && sizes[i].h == explicitH) {
+			if (sizes[i].w == explicitW && sizes[i].h == explicitH && explicitW <= kGuiMaxWidth && explicitH <= kGuiMaxHeight) {
 				g_guiW = explicitW;
 				g_guiH = explicitH;
 				g_guiValid = true;
@@ -230,7 +281,7 @@ bool dosGuiResolution(uint &width, uint &height) {
 
 	DosModeSize best;
 	if (!dosChooseGuiMode(sizes, count, maxW, maxH, haveNative, nativeW, nativeH, best)) {
-		addGuiNote(Common::String::format("DOSGFX: no RGB565 mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH));
+		addGuiNote(Common::String::format("DOSGFX: no 16 or 32-bit mode suits (limit %dx%d); the menus stay at 640x480", maxW, maxH));
 		return false;
 	}
 
@@ -241,6 +292,20 @@ bool dosGuiResolution(uint &width, uint &height) {
 	width = g_guiW;
 	height = g_guiH;
 	return true;
+}
+
+/**
+ * The scale factor for a screen of this size, no larger than the one asked for: the largest at which a video
+ * mode holds it (see dosFitScaleFactor()). The launcher is always 1x, at the resolution chosen for it.
+ */
+int dosScreenScaleFactor(int width, int height, bool aspect, int factor) {
+	uint guiWidth, guiHeight;
+	if (!g_engine && dosGuiResolution(guiWidth, guiHeight) && width == (int)guiWidth && height == (int)guiHeight)
+		return 1;
+
+	DosModeSize sizes[64];
+	const int count = dosScreenModeSizes(sizes, ARRAYSIZE(sizes));
+	return dosFitScaleFactor(sizes, count, width, height, aspect, factor);
 }
 
 /** The start-up banner, as in the dos backend: green text in the card's BIOS font until the game draws */

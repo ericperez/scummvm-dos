@@ -172,6 +172,10 @@ What the SDL3 build gives up or has not got, and is not done for now:
 * **Page flipping and the mode switching of `dos-graphics.cpp`**, replaced by SDL's own. SDL's driver copies the whole
   window surface to the card at every update (it ignores dirty rectangles on a linear framebuffer) and, by default, does
   not wait for the vertical retrace, so the picture can tear.
+* **The video mode** is the smallest of SDL's modes that holds the scaled screen, in 16 bits (RGB565 ahead of 5-5-5)
+  or else 32 bits. A scale factor whose screen no mode holds is lowered (a non-default scaler on the 800x600 menu, a
+  640x480 game with a 2x scaler), and the menus are always 1x at the resolution chosen for them.
+  `SCUMMVM_DOS_MODE_MAX=<width>x<height>` hides the larger modes, for testing.
 * **`KEYB` layouts, code pages and AltGr** (`dos-keyboard.cpp`, `dos-keymap.h`, `dos-codepages.h`): not used, SDL's
   keyboard driver hooks IRQ 1 itself, so keys are those of a US keyboard.
 * **The mouse wheel**, unless SDL's mouse driver gives it.

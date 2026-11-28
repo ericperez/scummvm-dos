@@ -233,4 +233,86 @@ public:
 		TS_ASSERT_EQUALS(out.w, 7);                                          // untouched when there is none
 		TS_ASSERT_EQUALS(out.h, 7);
 	}
+
+	void test_fit_scale_factor_keeps_a_factor_that_fits() {
+		const DosModeSize modes[] = { {640, 400}, {640, 480}, {800, 600}, {1024, 768} };
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 4, 320, 200, false, 2), 2);   // 640x400
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 4, 320, 200, false, 3), 3);   // 960x600 in 1024x768
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 4, 640, 480, false, 1), 1);
+	}
+
+	void test_fit_scale_factor_lowers_one_too_large() {
+		const DosModeSize modes[] = { {640, 400}, {640, 480}, {800, 600} };
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 320, 200, false, 3), 2);   // 960x600 is too wide
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 320, 200, false, 4), 2);
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 640, 480, false, 2), 1);   // a 640x480 game with hq2x
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 800, 600, false, 2), 1);   // the launcher
+	}
+
+	void test_fit_scale_factor_counts_aspect_ratio_correction() {
+		// 320x200 at 2x is 640x480 with the correction, 3x is 960x720
+		const DosModeSize modes[] = { {640, 400}, {640, 480}, {1024, 700} };
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 320, 200, true, 2), 2);
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 320, 200, true, 3), 2);    // 1024x700 is 20 lines short
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 3, 320, 200, false, 3), 3);   // without it 960x600 fits
+
+		const DosModeSize vga[] = { {640, 400} };
+		TS_ASSERT_EQUALS(dosFitScaleFactor(vga, 1, 320, 200, true, 2), 1);      // 640x480 needed
+	}
+
+	void test_fit_scale_factor_needs_both_sides() {
+		const DosModeSize modes[] = { {1280, 400}, {600, 1024} };   // 640x480 needed: too short, too narrow
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 2, 320, 240, false, 2), 1);
+	}
+
+	void test_fit_scale_factor_without_modes() {
+		TS_ASSERT_EQUALS(dosFitScaleFactor(nullptr, 0, 320, 200, false, 3), 1);
+		const DosModeSize modes[] = { {640, 480} };
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 1, 320, 200, false, 0), 1);   // nothing below 1
+		TS_ASSERT_EQUALS(dosFitScaleFactor(modes, 1, 320, 200, false, -1), 1);
+	}
+
+	void test_screen_mode_smallest_that_holds_it() {
+		const DosScreenMode modes[] = { {1024, 768, 0}, {800, 600, 0}, {640, 480, 0}, {640, 400, 0}, {320, 200, 0} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 5, 640, 400), 3);
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 5, 640, 401), 2);
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 5, 720, 350), 1);   // SCUMM's Hercules mode
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 5, 960, 600), 0);
+	}
+
+	void test_screen_mode_none_holds_it() {
+		const DosScreenMode modes[] = { {640, 480, 0}, {1024, 768, 2} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 2, 1600, 1200), -1);    // the launcher at 2x
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 2, 1280, 400), -1);     // wide enough nowhere
+		TS_ASSERT_EQUALS(dosChooseScreenMode(nullptr, 0, 320, 200), -1);
+	}
+
+	void test_screen_mode_rgb565_ahead_of_another_16_bit_format() {
+		const DosScreenMode modes[] = { {640, 480, 1}, {640, 480, 0}, {640, 480, 2} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 3, 640, 400), 1);
+	}
+
+	void test_screen_mode_a_card_with_15_bit_modes_only() {
+		// VBE 1.2 cards often have 5-5-5 modes and no 5-6-5 ones
+		const DosScreenMode modes[] = { {640, 480, 1}, {800, 600, 1} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 2, 640, 400), 0);
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 2, 800, 600), 1);
+	}
+
+	void test_screen_mode_size_comes_before_the_16_bit_format() {
+		// An exact 640x400 in 5-5-5 is better than 640x480 in 5-6-5 with black bars
+		const DosScreenMode modes[] = { {640, 480, 0}, {640, 400, 1} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 2, 640, 400), 1);
+	}
+
+	void test_screen_mode_32_bit_only_when_no_16_bit_mode_holds_it() {
+		const DosScreenMode modes[] = { {640, 400, 2}, {800, 600, 0}, {1024, 768, 2} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 3, 640, 400), 1);   // a larger 16-bit mode is cheaper to draw
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 3, 1024, 768), 2);
+	}
+
+	void test_screen_mode_skips_unusable_formats() {
+		const DosScreenMode modes[] = { {640, 400, -1}, {640, 480, 3}, {800, 600, 0} };
+		TS_ASSERT_EQUALS(dosChooseScreenMode(modes, 3, 640, 400), 2);
+	}
 };
