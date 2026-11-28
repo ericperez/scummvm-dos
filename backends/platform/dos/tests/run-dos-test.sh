@@ -459,6 +459,7 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     echo "$LOG" | grep -q "320x200 at 3x needs a larger video mode than the card has; using 2x" ||
       fail "the log does not say the game's scale factor was lowered"
     echo "$LOG" | grep -q "DOS: only .* screen can be shown" && fail "a screen larger than its video mode was set up"
+    echo "$LOG" | grep -q "DOS: no V-Sync" && fail "V-Sync (on by default) could not be switched on"
     echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
     ok "3x on an 800x600 card: launcher at 1x, game lowered to 2x (screens: $SCREENS)"
     ;;

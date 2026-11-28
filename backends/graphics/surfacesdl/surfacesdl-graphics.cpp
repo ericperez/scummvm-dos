@@ -235,7 +235,7 @@ SurfaceSdlGraphicsManager::SurfaceSdlGraphicsManager(SdlEventSource *sdlEventSou
 	_videoMode.fullscreen = true;
 	_videoMode.filtering = false;
 	_videoMode.stretchMode = STRETCH_CENTER;
-	_videoMode.vsync = false;
+	_videoMode.vsync = ConfMan.getBool("vsync");
 #else
 	_videoMode.fullscreen = ConfMan.getBool("fullscreen");
 	_videoMode.filtering = ConfMan.getBool("filtering");
@@ -270,8 +270,8 @@ SurfaceSdlGraphicsManager::~SurfaceSdlGraphicsManager() {
 bool SurfaceSdlGraphicsManager::hasFeature(OSystem::Feature f) const {
 	return
 #ifndef USE_DOS_SDL
-		// DOS: always full screen, and with no renderer the picture is shown 1:1, unfiltered, unrotated and
-		// without waiting for the retrace (see SDL_SetVideoMode())
+		// DOS: always full screen, and with no renderer the picture is shown 1:1, unfiltered and unrotated
+		// (see SDL_SetVideoMode())
 		(f == OSystem::kFeatureFullscreenMode) ||
 #endif
 #ifdef USE_SCALERS
@@ -287,6 +287,9 @@ bool SurfaceSdlGraphicsManager::hasFeature(OSystem::Feature f) const {
 		(f == OSystem::kFeatureRotationMode) ||
 		(f == OSystem::kFeatureVSync) ||
 #endif
+#else
+		// SDL's DOS driver waits for the retrace before it shows the window's surface
+		(f == OSystem::kFeatureVSync) ||
 #endif
 		(f == OSystem::kFeatureCursorPalette) ||
 		(f == OSystem::kFeatureCursorAlpha && !_isHwPalette) ||
@@ -3227,6 +3230,12 @@ SDL_Surface *SurfaceSdlGraphicsManager::SDL_SetVideoMode(int width, int height, 
 		if (!windowSurface) {
 			warning("SDL_GetWindowSurface failed (%s)", SDL_GetError());
 			return nullptr;
+		}
+
+		// V-Sync: the driver waits for the vertical retrace before it copies the surface or flips pages
+		if (!SDL_SetWindowSurfaceVSync(sdlWindow, _videoMode.vsync ? 1 : SDL_WINDOW_SURFACE_VSYNC_DISABLED) && _videoMode.vsync) {
+			warning("DOS: no V-Sync (%s)", SDL_GetError());
+			_videoMode.vsync = false;
 		}
 
 		// The scalers and the launcher draw in 16 or 32 bits only: fail rather than draw into another depth

@@ -59,7 +59,8 @@ one entry or none, and the Shader controls).
 | Shader | not shown | not shown |
 | Aspect ratio correction | not shown (13h is stretched to 4:3 by the monitor) | yes (200 lines drawn as 240 in software) |
 | Fullscreen mode | ticked and greyed out: always full screen | ticked and greyed out: always full screen (it used to be shown unticked and did nothing) |
-| Filter graphics, V-Sync | not shown | not shown: with no renderer they did nothing (`filtering` and `vsync` are ignored) |
+| Filter graphics | not shown | not shown: with no renderer it did nothing (`filtering` is ignored) |
+| V-Sync | not shown (the picture is shown at the vertical retrace) | yes, on by default: SDL's driver waits for the vertical retrace before it copies the picture or flips pages (`vsync=false` turns it off) |
 | Game 3D Renderer | yes (Software: TinyGL) | yes (Software: TinyGL) |
 
 ## Input
@@ -169,9 +170,11 @@ What the SDL3 build gives up or has not got, and is not done for now:
   sized from the monitor's EDID.
 * **The dithered 256-colour fallback** for cards with too little video memory, and the direct-colour (16-bit) path
   of `dos-graphics.cpp`: what SDL's driver offers is what there is.
-* **Page flipping and the mode switching of `dos-graphics.cpp`**, replaced by SDL's own. SDL's driver copies the whole
-  window surface to the card at every update (it ignores dirty rectangles on a linear framebuffer) and, by default, does
-  not wait for the vertical retrace, so the picture can tear.
+* **Page flipping and the mode switching of `dos-graphics.cpp`**, replaced by SDL's own. On a linear framebuffer with
+  room for two pages SDL's driver draws to the hidden page and flips; in a banked mode or mode 13h it copies to the
+  page on the display. It copies the whole window surface at every update on a linear framebuffer (it ignores dirty
+  rectangles there). With V-Sync on (the default, `vsync`) it waits for the vertical retrace first, so the picture
+  does not tear.
 * **The video mode** is the smallest of SDL's modes that holds the scaled screen, in 16 bits (RGB565 ahead of 5-5-5)
   or else 32 bits. A scale factor whose screen no mode holds is lowered (a non-default scaler on the 800x600 menu, a
   640x480 game with a 2x scaler), and the menus are always 1x at the resolution chosen for them.
