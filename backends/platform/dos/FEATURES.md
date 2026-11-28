@@ -192,8 +192,8 @@ What the SDL3 build gives up or has not got, and is not done for now:
   much ahead); `set SDL_AUDIO_DEVICE_SAMPLE_FRAMES=1024` (or 1536) trades some of the margin back. A load of a second
   or so (a new scene) still breaks the sound, as nothing runs the sound thread during it. The MIDI driver yields while it
   waits.
-* **Test hooks.** `SCUMMVM_DOS_SHOTS` and `SCUMMVM_DOS_QUITAT` work in both backends; `SCUMMVM_DOS_CLICKS`,
-  `SCUMMVM_DOS_RTL`, `SCUMMVM_DOS_SELFTEST16` and the like are in the own backend only.
+* **Test hooks.** `SCUMMVM_DOS_SHOTS`, `SCUMMVM_DOS_RTL` and `SCUMMVM_DOS_QUITAT` work in both backends;
+  `SCUMMVM_DOS_CLICKS`, `SCUMMVM_DOS_SELFTEST16` and the like are in the own backend only.
 * **No joystick switch** (`SCUMMVM_DOS_JOYSTICK`): SDL reads the game port itself.
 * **Nearptr.** SDL's DOS drivers need the "fat DS" trick (`__djgpp_nearptr_enable()`, called first in `main`), which
   switches off the DPMI host's memory protection.

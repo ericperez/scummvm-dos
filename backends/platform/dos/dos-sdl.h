@@ -52,9 +52,11 @@ protected:
 	AudioCDManager *createAudioCDManager() override;
 
 private:
-	// Testing aids, as in dos.cpp: SCUMMVM_DOS_SHOTS=s (screenshots) and SCUMMVM_DOS_QUITAT=s
+	// Testing aids, as in dos.cpp: SCUMMVM_DOS_SHOTS=s (screenshots), SCUMMVM_DOS_RTL=s and SCUMMVM_DOS_QUITAT=s
 
 	uint32 _shotEveryMs, _shotsTaken, _shotAtMs;
+	uint32 _rtlAtMs;
+	bool _rtlSent;
 	uint32 _quitAtMs;
 	bool _quitSent;
 

@@ -453,7 +453,8 @@ void dosLogStartup() {
 }
 
 OSystem_SDL_DOS::OSystem_SDL_DOS() :
-	_shotEveryMs(0), _shotsTaken(0), _shotAtMs(0), _quitAtMs(0), _quitSent(false), _earlyLogDone(false) {
+	_shotEveryMs(0), _shotsTaken(0), _shotAtMs(0), _rtlAtMs(0), _rtlSent(false), _quitAtMs(0), _quitSent(false),
+	_earlyLogDone(false) {
 	_lastError[0] = '\0';
 	_fsFactory = new POSIXFilesystemFactory();
 }
@@ -494,6 +495,9 @@ void OSystem_SDL_DOS::initBackend() {
 		_shotEveryMs = (uint32)atoi(shots) * 1000;
 		_shotAtMs = _shotEveryMs;
 	}
+	// SCUMMVM_DOS_RTL=n: return to the launcher after n seconds, as in the own backend
+	if (const char *rtl = getenv("SCUMMVM_DOS_RTL"))
+		_rtlAtMs = (uint32)atoi(rtl) * 1000;
 	if (const char *quit = getenv("SCUMMVM_DOS_QUITAT"))
 		_quitAtMs = (uint32)atoi(quit) * 1000;
 }
@@ -506,6 +510,14 @@ void OSystem_SDL_DOS::delayMillis(uint msecs) {
 		_shotAtMs = now + _shotEveryMs;
 		if (SdlGraphicsManager *gfx = dynamic_cast<SdlGraphicsManager *>(_graphicsManager))
 			warning("DOS test: screenshot %s %s", name.c_str(), gfx->saveScreenshot(Common::Path(name)) ? "saved" : "FAILED");
+	}
+
+	if (_rtlAtMs && !_rtlSent && now >= _rtlAtMs) {
+		_rtlSent = true;
+		Common::Event rtlEvent;
+		rtlEvent.type = Common::EVENT_RETURN_TO_LAUNCHER;
+		_eventManager->pushEvent(rtlEvent);
+		warning("DOS test: returning to the launcher");
 	}
 
 	if (_quitAtMs && !_quitSent && now >= _quitAtMs) {

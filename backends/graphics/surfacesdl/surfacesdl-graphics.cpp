@@ -716,8 +716,13 @@ bool SurfaceSdlGraphicsManager::setScaler(uint mode, int factor) {
 
 	assert(_transactionMode == kTransactionActive);
 
-	if (_oldVideoMode.setup && _oldVideoMode.scalerIndex == mode && _oldVideoMode.scaleFactor == factor)
+	if (_oldVideoMode.setup && _oldVideoMode.scalerIndex == mode && _oldVideoMode.scaleFactor == factor) {
+		// An earlier call in this transaction may have changed the scaler,
+		// so go back to the one that is in use
+		_videoMode.scalerIndex = mode;
+		_videoMode.scaleFactor = factor;
 		return true;
+	}
 
 	int newFactor;
 	if (factor == -1)

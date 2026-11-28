@@ -17,6 +17,7 @@
 #   smoke           the launcher comes up and draws
 #   nodpmi          without dist's CWSDPMI.EXE the program cannot start (so the other tests ran on it)
 #   sdl             the SDL3 build: VESA video, Sound Blaster audio, the launcher draws, a clean exit
+#   rtlsdl          the SDL3 build: back from a game played at 1x, the launcher has its own resolution again
 #   scalesdl        the SDL3 build: a 3x scale factor on a card with nothing above 800x600: the launcher stays at 1x
 #                   and the game is lowered to 2x, rather than set for a screen larger than every video mode
 #   edidsdl         the SDL3 build: a 3x scale factor with a monitor that reports 800x600 (and a card with larger modes):
@@ -28,7 +29,7 @@
 # Prints "DOSTEST <name> OK". Environment:
 #   DOS_BUILD       the build whose dist/ is run (default: build-dos-stable)
 #   TESTBED_BUILD   for plugadd, plugsmoke, mpt, mptdxe and nomouse (default: build-dos-testbed)
-#   SDL_BUILD       for sdl, scalesdl, edidsdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
+#   SDL_BUILD       for sdl, rtlsdl, scalesdl, edidsdl, mptdxesdl and nomousesdl (default: build-dos-sdl-testbed)
 #   KEEP=1          keep the run folder afterwards
 . "$(dirname "$0")/common.sh"
 
@@ -41,7 +42,7 @@ case "$NAME" in
   # These need no game data: the Testbed engine (build-dos-testbed, made with ENGINES_ONLY=testbed) is detected by
   # an empty file called TESTBED
   plugadd|plugsmoke|mpt|mptdxe|nomouse) DOS_BUILD=${TESTBED_BUILD:-$SRC/build-dos-testbed} ;;
-  sdl|scalesdl|edidsdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
+  sdl|rtlsdl|scalesdl|edidsdl|mptdxesdl|nomousesdl) DOS_BUILD=${SDL_BUILD:-$SRC/build-dos-sdl-testbed} ;;
   plug*|pageflip*) DOS_BUILD=${PLUGIN_BUILD:-$SRC/build-dos-stable} ;;
 esac
 WORK=${DOS_TEST_WORK:-$SRC/build-dos-tests}
@@ -433,6 +434,35 @@ print(sum(1 for b in d[:200000] if b))" "$LAST")
     BIG=$(find "$RUN" -iname 'SHOT*.PNG' -size +8k | wc -l | tr -d ' ')
     [ "$BIG" -ge 1 ] || fail "every screenshot is blank"
     ok "the launcher ran on SDL3, $SHOTS screenshots"
+    ;;
+
+  rtlsdl)
+    # The SDL3 build (SurfaceSdlGraphicsManager): a Testbed game whose target says scale_factor=1 draws 320x200 at 1x;
+    # back in the launcher, base/main.cpp's setupGraphics() asks for the default factor (the game's domain is no longer
+    # active) and then initSize() for 1x again. The launcher must come back at its own size, not at 2x (a video mode
+    # the card may not have, with the menus cut off). Not --scale-factor=1: that is a session setting, still there
+    # back in the launcher
+    write_conf "$CONF" 64
+    mkdir -p "$RUN/GAME"
+    : > "$RUN/GAME/TESTBED"
+    printf '[scummvm]\r\n\r\n[testbed]\r\ngameid=testbed\r\nengineid=testbed\r\npath=D:\\\r\nscale_factor=1\r\n' \
+      > "$RUN/SCUMMVM.INI"
+    build_dos_program "$TESTS_DIR/dos-programs/dosrun.c" DOSRUN.EXE
+    run_dosbox "$CONF" 150 -c "mount c $RUN" -c "mount d $RUN/GAME" -c "c:" \
+      -c "set SCUMMVM_DOS_GUI_MODE=800x600" -c "set SCUMMVM_DOS_RTL=15" -c "set SCUMMVM_DOS_QUITAT=30" \
+      -c 'DOSRUN.EXE SCUMMVM.EXE -d1 testbed > OUT.TXT' -c "exit"
+    exited_cleanly
+    LOG=$(program_log)
+    echo "$LOG" | grep -q "DOS test: returning to the launcher" || fail "the program was not sent back to the launcher"
+    # "DOS: screen WxH ..." is the hardware size each video mode was set for: the launcher, the game, the launcher
+    SCREENS=$(echo "$LOG" | sed -n 's/.*DOS: screen \([0-9]*x[0-9]*\) in a .*/\1/p' | tr '\n' ' ')
+    set -- $SCREENS
+    [ "$1" = 800x600 ] || fail "the launcher started at ${1:-no size}, not 800x600 (screens: $SCREENS)"
+    echo "$SCREENS" | grep -q "320x200" || fail "the game was not drawn at 320x200 at 1x (screens: $SCREENS)"
+    LAST=$(echo "$SCREENS" | awk '{ print $NF }')
+    [ "$LAST" = 800x600 ] || fail "back in the launcher the screen is $LAST, not 800x600 (screens: $SCREENS)"
+    echo "$LOG" | grep -qi "ERROR:" && fail "the log has an error"
+    ok "the launcher came back at 800x600 after a game at 1x (screens: $SCREENS)"
     ;;
 
   scalesdl)
